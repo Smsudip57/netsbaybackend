@@ -68,11 +68,11 @@ router.post('/stock_product', async (req, res) => {
         if(!productId || value === undefined || value === null){
             return res.status(400).json({ message: 'Product ID and value are required' });
         }
-        const deletedPlan = await Plan.findOneAndUpdate({ productId: productId }, { stock: value }, { new: true });
-        if (!deletedPlan) {
+        const targetPlan = await Plan.findOneAndUpdate({ productId: productId }, { Stock: value }, { new: true });
+        if (!targetPlan) {
             return res.status(404).json({ message: 'Plan not found' });
         }
-        return res.status(200).json({ message: 'Plan deleted successfully' });
+        return res.status(200).json({ message: `Plan stock updated to ${value?'available':'not available'}` });
     } catch (error) {
         console.error('Error deleting plan:', error);
         return res.status(500).json({ message: 'Failed to delete plan' });
@@ -102,34 +102,34 @@ router.post('/update_product', async (req, res) => {
         const { 
             productId,
             productName,
-            os,
-            networkType,
+            Os,
+            serviceType,
             cpu,
             ram,
             storage,
             ipSet,
             price,
-            inStock
+            Stock
         } = req.body;
 
         if (!productId) {
             return res.status(400).json({ message: 'Product ID is required' });
         }
 
-        if (!productName && !os && !networkType && !cpu && !ram && !storage && !ipSet && !price && inStock === undefined) {
+        if (!productName && !Os && !serviceType && !cpu && !ram && !storage && !ipSet && !price && Stock === undefined) {
             return res.status(400).json({ message: 'No update data provided' });
         }
 
         const updateData = {};
         if (productName) updateData.productName = productName;
-        if (os) updateData.Os = os;
-        if (networkType) updateData.serviceType = networkType;
+        if (Os) updateData.Os = Os;
+        if (serviceType) updateData.serviceType = serviceType;
         if (cpu) updateData.cpu = Number(cpu);
         if (ram) updateData.ram = Number(ram);
         if (storage) updateData.storage = Number(storage);
         if (ipSet) updateData.ipSet = ipSet;
         if (price) updateData.price = Number(price);
-        if (inStock !== undefined) updateData.stock = Boolean(inStock);
+        if (Stock !== undefined) updateData.Stock = Boolean(Stock);
 
         const updatedPlan = await Plan.findOneAndUpdate(
             { productId },
@@ -207,5 +207,34 @@ router.post('/add_services', async(req,res)=>{
         return res.status(500).json({ message: "Internal Server Error" });
     }
 })
+
+
+router.get('/services', async (req, res) => {
+    try {
+        const services = await Service.find().populate('relatedProduct').populate('relatedUser');
+        return res.status(200).json(services);
+    } catch (error) {
+        console.error('Error fetching services:', error);
+        return res.status(500).json({ message: 'Failed to fetch services' });
+    }
+});
+
+router.delete('/services', async (req, res) => {
+    try {
+        const { serviceId } = req.query;
+        if(!serviceId){
+            return res.status(400).json({ message: 'Service ID is required' });
+        }
+        const deletedService = await Service.findOneAndDelete({ serviceId: serviceId });
+        if (!deletedService) {
+            return res.status(404).json({ message: 'Service not found' });
+        }
+        return res.status(200).json({ message: 'Service deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting service:', error);
+        return res.status(500).json({ message: 'Failed to delete service' });
+    }
+});
+
 
 module.exports = router;
