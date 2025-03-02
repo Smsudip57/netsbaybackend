@@ -1,6 +1,7 @@
 const express = require('express');
 const User = require('../models/user');
 const Plan = require('../models/plan');
+const Announcement = require('../models/announcements');
 const router = express.Router();
 
 
@@ -30,6 +31,18 @@ router.get('/get_product',async(req,res)=>{
         return res.status(500).json({ message: 'Failed to get plan' });
     }
 })
+
+
+router.get("/announcements", async (req, res) => {
+    try {
+      const announcements = await Announcement.find();
+      return res.status(200).json(announcements);
+    } catch (error) {
+      console.error("Error fetching announcements:", error);
+      return res.status(500).json({ message: "Failed to fetch announcements" });
+    }
+  })
+
 
 
 module.exports = router;

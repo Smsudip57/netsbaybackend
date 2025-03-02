@@ -38,6 +38,8 @@ router.post('/login', async (req, res) => {
       path: '/',
     });
 
+    user.lastLogin = Date.now();
+    await user.save();
     return res.status(200).json({
       success: true,
       message: 'Login successful.',

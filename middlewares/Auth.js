@@ -77,7 +77,12 @@ const userAuth = async (req, res, next) => {
         message: 'Unauthorized',
       });
     }
-
+    if(user.isBanned){
+      return res.status(401).json({
+        success: false,
+        message: 'Your account has been banned',
+      });
+    }
     req.user = user;
 
     next();  // Proceed to the next middleware/route handler

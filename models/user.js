@@ -90,6 +90,18 @@ const userSchema = new mongoose.Schema({
   isActive: {
     type: Boolean,
     default: false
+  },
+  isBanned: {
+    type: Boolean,
+    default: false
+  },
+  revokedService:{
+    type: Boolean,
+    default: false
+  },
+  lastLogin: {
+    type: Date,
+    default: Date.now
   }
 });
 
