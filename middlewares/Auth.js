@@ -84,7 +84,6 @@ const userAuth = async (req, res, next) => {
       });
     }
     req.user = user;
-
     next();  // Proceed to the next middleware/route handler
   } catch (error) {
     console.error('Error authenticating user:', error);
