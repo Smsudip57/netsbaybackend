@@ -63,6 +63,7 @@ router.put("/update_user", async (req, res) => {
   }
 });
 
+
 router.post("/create_announcement", async (req, res) => {
   try {
     const { subject, body } = req.body;
@@ -277,6 +278,7 @@ router.post("/add_services", async (req, res) => {
       req.body.map(async (item) => {
         return {
           relatedProduct: relatedProduct._id,
+          serviceNickname: relatedProduct.productName,
           serviceId: await generateUniqueServiceId(),
           vmID: item.vmId || null,
           purchaseDate: item.purchaseDate ? new Date(item.purchaseDate) : null,

@@ -1,0 +1,37 @@
+name: Backend CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy Backend to VPS
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Install sshpass
+        run: sudo apt-get install sshpass
+
+      - name: Deploy to VPS and Build
+        run: |
+          sshpass -p "Netbay@1234" ssh -o StrictHostKeyChecking=no root@161.248.1.254 << 'EOF'
+            cd /var/www/netsbaybackend
+
+            # Pull latest changes
+            git reset --hard
+            git pull origin main
+
+            # Install dependencies
+            npm install
+
+            # Run Server
+            pm2 restart api || pm2 start npm --name "api" -- start
+
+          EOF
+
+          

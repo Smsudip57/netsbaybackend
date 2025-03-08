@@ -27,6 +27,8 @@ router.post('/login', async (req, res) => {
         error: 'Invalid email or password.',
       });
     }
+    user.lastLogin = Date.now();
+    await user.save();
     
     user.password = undefined;
     
@@ -38,8 +40,6 @@ router.post('/login', async (req, res) => {
       path: '/',
     });
 
-    user.lastLogin = Date.now();
-    await user.save();
     return res.status(200).json({
       success: true,
       message: 'Login successful.',

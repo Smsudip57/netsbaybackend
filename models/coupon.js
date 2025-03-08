@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const { validate } = require('./session');
 
 const couponSchema = new mongoose.Schema({
     masterType: {
@@ -90,7 +89,8 @@ const couponSchema = new mongoose.Schema({
     },
     token: {
         type: String,
-        required: [true, 'Token is required']
+        required: [true, 'Token is required'],
+        unique: true
     },
     isActive: {
         type: Boolean,
