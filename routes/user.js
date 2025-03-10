@@ -35,7 +35,7 @@ router.get("/get_product", async (req, res) => {
 
 router.get("/announcements", async (req, res) => {
   try {
-    const announcements = await Announcement.find();
+    const announcements = await Announcement.find().sort({ createdAt: -1 });
     return res.status(200).json(announcements);
   } catch (error) {
     console.error("Error fetching announcements:", error);

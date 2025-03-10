@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const { default: mongoose } = require("mongoose");
 const Announcement = require("../models/announcements");
 const Coupon = require("../models/coupon");
+const System = require("../models/system");
 const router = express.Router();
 
 router.get("/all_users", async (req, res) => {
@@ -487,5 +488,62 @@ router.delete("/delete_coupon", async (req, res) => {
     return res.status(500).json({ message: "Failed to delete coupon" });
   }
 });
+
+
+//sytem
+router.get("/system", async (req, res) => {
+  try {
+    const { name } = req.query;
+    if (!name) {
+      const systems = await System.find();
+      return res.status(200).json(systems);
+    }
+    const system = await System.find({ name: name });
+    if (!system) {
+      return res.status(404).json({ message: "System not found" });
+    }
+    return res.status(200).json(system);
+  } catch (error) {
+    console.error("Error fetching system:", error);
+    return res.status(500).json({ message: "Failed to fetch system" });
+  }
+});
+
+router.post("/create_system", async (req, res) => {
+  try {
+    const { name, value } = req.body;
+    if (!name || !value) {
+      return res.status(400).json({ message: "Name and value are required" });
+    }
+    const system = new System({ name, value });
+    await system.save();
+    return res
+      .status(201)
+      .json({ message: "System created successfully", system });
+  } catch (error) {
+    console.error("Error creating system:", error);
+    return res.status(500).json({ message: "Failed to create system" });
+  }
+});
+
+
+router.delete("/delete_system", async (req, res) => {
+  try {
+    const { id } = req.query;
+    if (!id) {
+      return res.status(400).json({ message: "ID is required" });
+    }
+    const deletedSystem = await System.findByIdAndDelete(id);
+    if (!deletedSystem) {
+      return res.status(404).json({ message: "System not found" });
+    }
+    return res.status(200).json({ message: "System deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting system:", error);
+    return res.status(500).json({ message: "Failed to delete system" });
+  }
+});
+
+
 
 module.exports = router;
