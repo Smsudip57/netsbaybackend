@@ -7,6 +7,7 @@ const { default: mongoose } = require("mongoose");
 const Announcement = require("../models/announcements");
 const Coupon = require("../models/coupon");
 const System = require("../models/system");
+const Transaction = require("../models/transaction");
 const router = express.Router();
 
 router.get("/all_users", async (req, res) => {
@@ -35,14 +36,34 @@ router.get("/targetuser", async (req, res) => {
 
 router.put("/update_user", async (req, res) => {
   try {
-    const { userId, balance, isBanned, revokedService } = req.body;
+    const { userId,reason, balance, isBanned, revokedService } = req.body;
 
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
     }
+    
+    const existinguser = await User
+      .findById(userId)
 
     const updateFields = {};
-    if (balance !== undefined) updateFields.balance = balance;
+    if (balance !== undefined) {
+      updateFields.balance = balance < 0 ? 0 : parseFloat(balance).toFixed(2);
+      let newTransactionId;
+      let existingTransaction;
+     
+      do {
+        newTransactionId = `TRN${crypto.randomInt(10000, 99999)}`;
+        existingTransaction = await Transaction.findOne({ transactionId: newTransactionId });
+      } while (existingTransaction);
+      const transaction = new Transaction({
+        transactionId: newTransactionId,
+        user: userId,
+        amount: updateFields.balance-existinguser.balance,
+        type: 'Admin-Update',
+        description: reason || 'Admin updated balance',
+      });
+      await transaction.save();
+    };
     if (isBanned !== undefined) updateFields.isBanned = isBanned;
     if (revokedService !== undefined)
       updateFields.revokedService = revokedService;

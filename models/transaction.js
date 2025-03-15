@@ -1,51 +1,40 @@
-const mongoose = require('mongoose');
-const service = require('./service');
+const mongoose = require("mongoose");
+const service = require("./service");
 
 const transactionSchema = new mongoose.Schema({
-    transactionID:{
-        type: String, // TRN3481423985
-        required: true,
-        unique: true
-    },
-  user:{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User'
+  transactionId: {
+    type: String, // TRN3481423985
+    required: true,
+    unique: true,
   },
-  productMongoID:{
+  user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Plan',
-    required:true
+    ref: "User",
   },
-  productId:{
+  serviceMongoID: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Service",
+  },
+  type: {
     type: String,
-    required:true
+    required: true,
   },
-  serviceMongoID:{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Service',
-    required:true
+  amount: {
+    type: Number,
+    required: true,
   },
-  serviceId:{
+  description: {
     type: String,
-    required:true
-  },
-  amout:{
-    type: Number,
-    required:true
-  },
-  count:{
-    type: Number,
-    required:true
+    required: true,
   },
   createdAt: {
     type: Date,
-    default: Date.now
+    default: Date.now,
   },
- 
-})
+});
 
-
-
-const Transaction = mongoose.models.Transaction || mongoose.model('Transaction', transactionSchema);
+const Transaction =
+  mongoose.models.Transaction ||
+  mongoose.model("Transaction", transactionSchema);
 
 module.exports = Transaction;

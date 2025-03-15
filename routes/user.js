@@ -4,6 +4,8 @@ const Plan = require("../models/plan");
 const Announcement = require("../models/announcements");
 const Service = require("../models/service");
 const Coupon = require("../models/coupon");
+const Transaction = require("../models/transaction");
+const crypto = require("crypto");
 const router = express.Router();
 
 router.get("/all_plans", async (req, res) => {
@@ -50,7 +52,12 @@ router.get("/apply_coupon", async (req, res) => {
       return res.status(400).json({ message: "Coupon token is required" });
     }
     const coupon = await Coupon.findOne({ token: token });
-    if (!coupon || coupon.masterType !== "product" || !coupon.isActive || coupon.endDate < new Date() ) {
+    if (
+      !coupon ||
+      coupon.masterType !== "product" ||
+      !coupon.isActive ||
+      coupon.endDate < new Date()
+    ) {
       return res.status(404).json({ message: "Coupon not found" });
     }
     if (coupon.maxUses > 0 && coupon.used >= coupon.maxUses) {
@@ -73,38 +80,37 @@ router.get("/apply_coupon", async (req, res) => {
   }
 });
 
-
-
 router.get("/services", async (req, res) => {
-    try {
-        const { _id } = req.user;
-        const services = await Service.find({ relatedUser: _id }).populate("relatedProduct");
-        return res.status(200).json(services);
-    } catch (error) {
-        console.error("Error fetching services:", error);
-        return res.status(500).json({ message: "Failed to fetch services" });
-    }
+  try {
+    const { _id } = req.user;
+    const services = await Service.find({ relatedUser: _id }).populate(
+      "relatedProduct"
+    );
+    return res.status(200).json(services);
+  } catch (error) {
+    console.error("Error fetching services:", error);
+    return res.status(500).json({ message: "Failed to fetch services" });
+  }
 });
-
 
 router.get("/service", async (req, res) => {
-    try {
-        const { serviceId } = req.query;
-        if (!serviceId) {
-            return res.status(400).json({ message: "Service ID is required" });
-        }
-        const service = await Service.findOne({ serviceId: serviceId }).populate("relatedProduct");
-        if (!service) {
-            return res.status(404).json({ message: "Service not found" });
-        }
-        return res.status(200).json(service);
-    } catch (error) {
-        console.error("Error fetching service:", error);
-        return res.status(500).json({ message: "Failed to fetch service" });
+  try {
+    const { serviceId } = req.query;
+    if (!serviceId) {
+      return res.status(400).json({ message: "Service ID is required" });
     }
+    const service = await Service.findOne({ serviceId: serviceId }).populate(
+      "relatedProduct"
+    );
+    if (!service) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+    return res.status(200).json(service);
+  } catch (error) {
+    console.error("Error fetching service:", error);
+    return res.status(500).json({ message: "Failed to fetch service" });
+  }
 });
-
-
 
 router.get("/purchase_service", async (req, res) => {
   try {
@@ -178,6 +184,22 @@ router.get("/purchase_service", async (req, res) => {
         await relatedServices[i].save();
       }
     }
+    let newTransactionId;
+    let existingTransaction;
+    do {
+      newTransactionId = `TRN${crypto.randomInt(10000, 99999)}`;
+      existingTransaction = await Transaction.findOne({
+        transactionId: newTransactionId,
+      });
+    } while (existingTransaction);
+    const transaction = new Transaction({
+      transactionId: newTransactionId,
+      user: user._id,
+      amount: -price.toFixed(2),
+      type: "Service-Purchase",
+      description: `Purchased service: ${relatedServices[0].serviceNickname} for ${quantity} time(s)`,
+    });
+    await transaction.save();
     user.balance -= price.toFixed(2);
     await user.save();
     if (validToken) {
@@ -187,6 +209,16 @@ router.get("/purchase_service", async (req, res) => {
   } catch (error) {
     console.error("Error getting plan:", error);
     return res.status(500).json({ message: "Failed to get plan" });
+  }
+});
+
+router.get("/transactions", async (req, res) => {
+  try {
+    const user = req.user;
+    const transactions = await Transaction.find({ user: user._id });
+    return res.status(200).json(transactions);
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch transactions" });
   }
 });
 
