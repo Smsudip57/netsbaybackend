@@ -19,7 +19,7 @@ jobs:
 
       - name: Deploy to VPS and Build
         run: |
-          sshpass -p "Netbay@1234" ssh -o StrictHostKeyChecking=no root@161.248.1.254 << 'EOF'
+          sshpass -p "PAbCptqKYwJ2D43Lx@9X" ssh -o StrictHostKeyChecking=no root@161.248.1.254 << 'EOF'
             # Load nvm
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
