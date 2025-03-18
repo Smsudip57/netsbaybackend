@@ -71,6 +71,7 @@ router.post("/new_payment", async (req, res) => {
     console.error("Error initiating payment:", error);
     return res.status(500).json({
       message: error.message || "Failed to initiate payment",
+      error: error,
       success: false,
     });
   }
