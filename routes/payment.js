@@ -14,7 +14,6 @@ const APP_BE_URL = process.env.Current_Url; // Your backend URL
 // Endpoint to initiate a payment
 router.post("/new_payment", async (req, res) => {
   try {
-    // Get amount from request body
     const amount = req.body.amount || 100; // Default to 100 if not provided
     
     // You can get userId from your authentication middleware
