@@ -11,7 +11,7 @@ const MERCHANT_ID = "M1FB2SUH7ZNA";
 const PHONE_PE_HOST_URL = "https://api.phonepe.com/apis/hermes";
 const SALT_INDEX = 1;
 const SALT_KEY = "93ffd3df-d4bc-48f7-926a-36da8b16dd42";
-const APP_BE_URL = process.env.Current_Url; 
+const APP_BE_URL = process.env.Client_Url; 
 
 const Inrperusd = 83;
 
