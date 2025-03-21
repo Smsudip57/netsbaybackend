@@ -24,7 +24,7 @@ const io = setupSocket(server);
 
 // Connect to MongoDB
 app.use(cors({
-    origin: ['http://localhost:8080', process.env.Client_Url],
+    origin: ['http://localhost:8080', process.env.Client_Url,"https://netbay.in"],
     credentials: true
 }))
 app.use(express.static('public'));
