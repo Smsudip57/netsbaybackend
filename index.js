@@ -41,6 +41,7 @@ app.get('/', (req, res) => {
     res.send('Hello World!');
 })
 
+app.use('/api/payment/stripe_webhook', express.raw({type: 'application/json'}));
 app.use(express.json());
 
 
