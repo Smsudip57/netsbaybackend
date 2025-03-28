@@ -265,8 +265,20 @@ router.post("/phonepay_webhook", async (req, res) => {
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
-
+    console.log(jsonResponse)
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      console.log("✅ Payment success detected:", { 
+        success: jsonResponse.success, 
+        code: jsonResponse.code 
+      });
+      
+      console.log("📝 Creating transaction with data:", {
+        transactionId: jsonResponse.data.merchantTransactionId,
+        amount: Number(jsonResponse.data.amount) / 100,
+        type: "PhonePe",
+        user: user_id
+      });
+      
       const transaction = new Transaction({
         transactionId: jsonResponse.data.merchantTransactionId,
         amount: Number(jsonResponse.data.amount) / 100,
@@ -274,8 +286,36 @@ router.post("/phonepay_webhook", async (req, res) => {
         user: user_id,
         description: "Package purchase",
       });
-      await transaction.save();
-      const packageDetails = package.find((p) => p.id === package).coins;
+      
+      console.log("💾 Saving transaction to database...");
+      try {
+        await transaction.save();
+        console.log("✅ Transaction saved successfully:", transaction._id);
+      } catch (err) {
+        console.error("❌ Error saving transaction:", err);
+        throw err;
+      }
+      
+      console.log("🔍 Finding package details. Package ID:", package);
+      console.log("📦 Available packages:", JSON.stringify(package));
+      
+      const packageObj = package.find(p => p.id === parseInt(package));
+      console.log("📦 Found package object:", packageObj);
+      
+      const packageDetails = packageObj ? packageObj.coins : null;
+      console.log("💰 Package coins amount:", packageDetails);
+      
+      if (!packageDetails) {
+        console.error("❌ Package details not found for ID:", package);
+      }
+      
+      console.log("📝 Creating payment record with data:", {
+        transactionID: jsonResponse.data.merchantTransactionId,
+        user: user_id,
+        coinAmount: packageDetails,
+        price: Number(jsonResponse.data.amount) / 100
+      });
+      
       const payment = new Payment({
         transactionID: jsonResponse.data.merchantTransactionId,
         paymentType: "Phonepe",
@@ -283,12 +323,58 @@ router.post("/phonepay_webhook", async (req, res) => {
         coinAmout: packageDetails,
         Price: Number(jsonResponse.data.amount) / 100,
       });
-      await payment.save();
-      const userfromDb = await User.findById(user_id);
-      userfromDb.balance += Number(packageDetails);
-      await userfromDb.save();
+      
+      console.log("💾 Saving payment record to database...");
+      try {
+        await payment.save();
+        console.log("✅ Payment record saved successfully:", payment._id);
+      } catch (err) {
+        console.error("❌ Error saving payment:", err);
+        throw err;
+      }
+      
+      console.log("🔍 Looking up user with ID:", user_id);
+      let userfromDb;
+      try {
+        userfromDb = await User.findById(user_id);
+        console.log("👤 User found:", userfromDb ? {
+          id: userfromDb._id,
+          currentBalance: userfromDb.balance
+        } : "No user found");
+        
+        if (!userfromDb) {
+          console.error("❌ User not found with ID:", user_id);
+          return res.status(404).json({ status: "FAILED", message: "User not found" });
+        }
+      } catch (err) {
+        console.error("❌ Error finding user:", err);
+        throw err;
+      }
+      
+      const oldBalance = userfromDb.balance || 0;
+      const addedCoins = Number(packageDetails);
+      const newBalance = oldBalance + addedCoins;
+      
+      console.log("💰 Updating user balance:", {
+        oldBalance: oldBalance,
+        addingCoins: addedCoins,
+        newBalance: newBalance
+      });
+      
+      userfromDb.balance = newBalance;
+      
+      console.log("💾 Saving updated user to database...");
+      try {
+        await userfromDb.save();
+        console.log("✅ User balance updated successfully");
+      } catch (err) {
+        console.error("❌ Error updating user balance:", err);
+        throw err;
+      }
+      
+      console.log("📤 Sending success response to client");
       return res.status(200).json({ status: "SUCCESS" });
-    } else {
+    }else {
       return res.status(200).json({ status: "FAILED" });
     }
   } catch (error) {
