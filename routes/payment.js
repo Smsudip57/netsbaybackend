@@ -239,33 +239,71 @@ router.get("/status", async (req, res) => {
 
 
 router.post("/phonepay_webhook", async (req, res) => {
+  console.log("➡️ PhonePe webhook received");
   try {
-    const { userId:user_id, package } = req.query;
-    const authHeader = req.headers["X-VERIFY"];
+    // Log incoming request data
+    console.log("📩 Request query params:", req.query);
+    console.log("📩 Request headers:", req.headers);
+    console.log("📩 Request body:", req.body);
+
+    const { userId: user_id, package: packageId } = req.query;
+    console.log("🔍 Extracted from query:", { user_id, packageId });
+
+    const authHeader = req.headers["x-verify"] || req.headers["X-VERIFY"];
+    console.log("🔑 Auth header:", authHeader);
+
     if (!authHeader) {
+      console.log("❌ Authorization header missing");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Authorization header missing" });
     }
+
     const [checksum, saltIndex] = authHeader.split("###");
+    console.log("🧩 Extracted checksum parts:", { checksum, saltIndex });
+
     const { response: base64Response } = req.body;
-    const decodedString = Buffer.from(base64Response, "base64").toString(
-      "utf8"
-    );
+    console.log("📦 Base64 response:", base64Response);
+
+    const decodedString = Buffer.from(base64Response, "base64").toString("utf8");
+    console.log("📄 Decoded string:", decodedString);
+
     const jsonResponse = JSON.parse(decodedString);
+    console.log("🔄 Parsed JSON response:", JSON.stringify(jsonResponse, null, 2));
+
     const stringToHash = base64Response + SALT_KEY;
+    console.log("🔗 String to hash (first 20 chars):", stringToHash.substring(0, 20) + "...");
+    console.log("🔑 SALT_KEY (first 5 chars):", SALT_KEY.substring(0, 5) + "...");
+
     const recalculatedChecksum = crypto
       .createHash("sha256")
       .update(stringToHash)
       .digest("hex");
+    console.log("🧮 Recalculated checksum:", recalculatedChecksum);
+    console.log("🧮 Original checksum:    ", checksum);
+    console.log("✅ Checksums match?", recalculatedChecksum === checksum);
 
     if (recalculatedChecksum !== checksum) {
+      console.log("❌ Checksum verification failed");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
 
+    console.log("✅ Checksum verified successfully");
+    console.log("🔍 Payment success check:", {
+      success: jsonResponse.success,
+      code: jsonResponse.code
+    });
+
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      console.log("💰 Payment success detected");
+      console.log("📊 Transaction data:", {
+        transactionId: jsonResponse.data.transactionId,
+        amount: Number(jsonResponse.data.amount)/100,
+        user: user_id
+      });
+
       const transaction = new Transaction({
         transactionId: jsonResponse.data.transactionId,
         amount: Number(jsonResponse.data.amount)/100,
@@ -273,17 +311,54 @@ router.post("/phonepay_webhook", async (req, res) => {
         user: user_id,
         description: "Package purchase",
       });
+      
+      console.log("💾 Saving transaction to database...");
       await transaction.save();
+      console.log("✅ Transaction saved successfully");
+
+      console.log("🔍 Looking up user with ID:", user_id);
       const userfromDb = await User.findById(user_id);
-      const packageDetails = package.find((p) => p.id === package).coins;
-      userfromDb.balance += Number(packageDetails);
+      console.log("👤 User found:", userfromDb ? "Yes" : "No");
+      
+      if (!userfromDb) {
+        console.log("❌ User not found in database");
+        return res.status(404).json({ status: "FAILED", message: "User not found" });
+      }
+
+      console.log("🔍 Looking up package:", packageId);
+      console.log("📦 Available packages:", package);
+      const packageDetails = package.find((p) => p.id === parseInt(packageId));
+      console.log("📦 Package details found:", packageDetails);
+      
+      if (!packageDetails) {
+        console.log("❌ Package not found");
+        return res.status(404).json({ status: "FAILED", message: "Package not found" });
+      }
+
+      console.log("💰 User current balance:", userfromDb.balance);
+      console.log("💰 Adding coins:", packageDetails.coins);
+      
+      const oldBalance = userfromDb.balance || 0;
+      userfromDb.balance += Number(packageDetails.coins);
+      
+      console.log("💰 New balance:", userfromDb.balance);
+      console.log("💾 Saving updated user balance...");
+      
       await userfromDb.save();
+      console.log("✅ User balance updated successfully");
+
+      console.log("📤 Sending success response");
       return res.status(200).json({ status: "SUCCESS" });
     } else {
+      console.log("❌ Payment unsuccessful:", {
+        success: jsonResponse.success,
+        code: jsonResponse.code
+      });
       return res.status(200).json({ status: "FAILED" });
     }
   } catch (error) {
-    console.error("Error in PhonePe callback:", error);
+    console.error("❌ Error in PhonePe callback:", error);
+    console.error("Error stack:", error.stack);
     return res.status(500).json({ status: "ERROR", message: error.message });
   }
 });
