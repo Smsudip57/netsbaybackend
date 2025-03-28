@@ -53,7 +53,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
 
     // const amount = package.find((p) => p.id === packageid).priceINR;
     // const usdAmount = package.find((p) => p.id === packageid).priceUSD;
-    const amount = 2;
+    const amount = 1.1;
     const usdAmount = 0.05;
     if (!amount || !usdAmount) {
       return res.status(400).json({ message: "Invalid package" });
@@ -240,31 +240,63 @@ router.get("/status", async (req, res) => {
 
 router.post("/phonepay_webhook", async (req, res) => {
   try {
-    const authHeader = req.headers["X-VERIFY"];
+    console.log("✅ PhonePe webhook received:", { 
+      headers: req.headers,
+      body: req.body
+    });
+    
+    const authHeader = req.headers["x-verify"] || req.headers["X-VERIFY"];
+    console.log("📝 Auth header:", authHeader);
+    
     if (!authHeader) {
+      console.log("❌ Authorization header missing");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Authorization header missing" });
     }
+    
     const [checksum, saltIndex] = authHeader.split("###");
+    console.log("🔑 Extracted values:", { checksum, saltIndex });
+    
     const { response: base64Response } = req.body;
-    const decodedString = Buffer.from(base64Response, "base64").toString(
-      "utf8"
-    );
+    console.log("📦 Base64 response:", base64Response);
+    
+    const decodedString = Buffer.from(base64Response, "base64").toString("utf8");
+    console.log("🔓 Decoded string:", decodedString);
+    
     const jsonResponse = JSON.parse(decodedString);
+    console.log("📄 JSON response:", jsonResponse);
+    
     const stringToHash = base64Response + SALT_KEY;
+    console.log("🔗 String to hash:", stringToHash);
+    
     const recalculatedChecksum = crypto
       .createHash("sha256")
       .update(stringToHash)
       .digest("hex");
+    console.log("🧮 Recalculated checksum:", recalculatedChecksum);
+    console.log("🔍 Checksum comparison:", { 
+      original: checksum, 
+      recalculated: recalculatedChecksum,
+      match: recalculatedChecksum === checksum
+    });
 
     if (recalculatedChecksum !== checksum) {
+      console.log("❌ Checksum verification failed");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
+    
+    console.log("✅ Checksum verified successfully");
 
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      console.log("💰 Payment success detected:", {
+        transactionId: jsonResponse.data.transactionId,
+        amount: jsonResponse.data.amount,
+        userId: jsonResponse?.data?.paymentInstrument?.user
+      });
+      
       const transaction = new Transaction({
         transactionId: jsonResponse.data.transactionId,
         amount: Number(jsonResponse.data.amount),
@@ -272,19 +304,45 @@ router.post("/phonepay_webhook", async (req, res) => {
         user: jsonResponse?.data?.paymentInstrument?.user,
         description: "Package purchase",
       });
+      
+      console.log("💾 Saving transaction:", transaction);
       await transaction.save();
-      const userfromDb = await User.findById(jsonResponse?.data?.paymentInstrument?.user);
-      userfromDb.balance += Number(jsonResponse.data.amount);
+      console.log("✅ Transaction saved successfully");
+      
+      const userId = jsonResponse?.data?.paymentInstrument?.user;
+      console.log("🔍 Looking up user:", userId);
+      
+      const userfromDb = await User.findById(userId);
+      console.log("👤 User found:", {
+        userId: userfromDb?._id,
+        currentBalance: userfromDb?.balance
+      });
+      
+      const newBalance = userfromDb.balance + Number(jsonResponse.data.amount);
+      console.log("💰 Updating balance:", {
+        oldBalance: userfromDb.balance,
+        amount: Number(jsonResponse.data.amount),
+        newBalance
+      });
+      
+      userfromDb.balance = newBalance;
       await userfromDb.save();
+      console.log("✅ User balance updated successfully");
+      
       return res.status(200).json({ status: "SUCCESS" });
     } else {
+      console.log("❌ Payment not successful:", {
+        success: jsonResponse.success,
+        code: jsonResponse.code
+      });
       return res.status(200).json({ status: "FAILED" });
     }
   } catch (error) {
-    console.error("Error in PhonePe callback:", error);
+    console.error("❌ Error in PhonePe callback:", error);
     return res.status(500).json({ status: "ERROR", message: error.message });
   }
 });
+
 
 router.post("/stripe_webhook", async (req, res) => {
   const webhookSecret =
