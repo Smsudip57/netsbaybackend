@@ -141,7 +141,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
         success_url: `${APP_BE_URL}/payment/status?session_id={CHECKOUT_SESSION_ID}&txn=${merchantTransactionId}`,
         cancel_url: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
         metadata: {
-          package: packageid.toString(),
+          package: packageid,
           transactionId: merchantTransactionId,
           userId: userId || "guest",
         },
@@ -245,7 +245,6 @@ router.get("/status", async (req, res) => {
 router.post("/phonepay_webhook", async (req, res) => {
   try {
     const { userId: user_id, package: packageId } = req.query;
-    console.log(req.headers);
     const packageDetails = package.find(
       (p) => p.id === parseInt(packageId)
     )?.coins;
@@ -260,13 +259,10 @@ router.post("/phonepay_webhook", async (req, res) => {
     }
     const [checksum, saltIndex] = authHeader.split("###");
     const { response: base64Response } = req.body;
-    console.log(base64Response);
     const decodedString = Buffer.from(base64Response, "base64").toString(
       "utf8"
     );
-
     const jsonResponse = JSON.parse(decodedString);
-    console.log(jsonResponse);
     const stringToHash = base64Response + SALT_KEY;
     const recalculatedChecksum = crypto
       .createHash("sha256")
