@@ -289,7 +289,7 @@ router.post("/phonepay_webhook", async (req, res) => {
         await transaction.save();
         console.log("hit here");
         // Validate if package exists
-        const packageDetails = package.find((p) => p.id === packageId)?.coins;
+        const packageDetails = package.find((p) => p.id === parseInt(packageId))?.coins;
         if (!packageDetails) {
           throw new Error("Invalid package selected.");
         }
