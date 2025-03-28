@@ -77,7 +77,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
         merchantUserId: userId,
         amount: Number((amount * 100 + amount * 100 * taxGst).toFixed(2)),
         redirectUrl: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
-        callbackUrl: `${process.env.Current_Url}/api/payment/phonepay_webhook`,
+        callbackUrl: `${process.env.Current_Url}/api/payment/phonepay_webhook?userId=${userId}`,
         redirectMode: "REDIRECT",
         mobileNumber: req.body.mobileNumber || "9793741405",
         additionalData: {
@@ -243,6 +243,7 @@ router.get("/status", async (req, res) => {
 
 router.post("/phonepay_webhook", async (req, res) => {
   try {
+    const { userId } = req.query;
     console.log("✅ PhonePe webhook received:", {
       headers: req.headers,
       body: req.body,
@@ -299,7 +300,7 @@ router.post("/phonepay_webhook", async (req, res) => {
       console.log("💰 Payment success detected:", {
         transactionId: jsonResponse.data.transactionId,
         amount: jsonResponse.data.amount,
-        userId: jsonResponse?.data?.additionalData?.userId,
+        userId: userId,
       });
 
       const transaction = new Transaction({
