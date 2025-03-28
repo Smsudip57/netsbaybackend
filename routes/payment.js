@@ -299,7 +299,7 @@ router.post("/phonepay_webhook", async (req, res) => {
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
       console.log("💰 Payment success detected");
       console.log("📊 Transaction data:", {
-        transactionId: jsonResponse.data.transactionId,
+        transactionId: jsonResponse.data.merchantTransactionId,
         amount: Number(jsonResponse.data.amount)/100,
         user: user_id
       });
