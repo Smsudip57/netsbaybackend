@@ -5,21 +5,33 @@ const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const router = express.Router();
 const uniqid = require("uniqid");
 const Transaction = require("../models/transaction");
+const { adminAuth, userAuth } = require("../middlewares/Auth");
+const User = require("../models/user");
 
-// UAT environment configuration
+const secretpassword = "MynameIsSudip"
 const MERCHANT_ID = "M1FB2SUH7ZNA";
 const PHONE_PE_HOST_URL = "https://api.phonepe.com/apis/hermes";
 const SALT_INDEX = 1;
 const SALT_KEY = "93ffd3df-d4bc-48f7-926a-36da8b16dd42";
-const APP_BE_URL = process.env.Client_Url; 
-const taxGst = .18;
+const APP_BE_URL = process.env.Client_Url;
+const taxGst = 0.18;
 const Inrperusd = 86;
 
 const package = [
   { id: 1, coins: 200, priceINR: 200, priceUSD: (200 / Inrperusd).toFixed(2) },
   { id: 2, coins: 500, priceINR: 500, priceUSD: (500 / Inrperusd).toFixed(2) },
-  { id: 3, coins: 1000, priceINR: 1000, priceUSD: (1000 / Inrperusd).toFixed(2) },
-  { id: 4, coins: 2000, priceINR: 2000, priceUSD: (2000 / Inrperusd).toFixed(2) },
+  {
+    id: 3,
+    coins: 1000,
+    priceINR: 1000,
+    priceUSD: (1000 / Inrperusd).toFixed(2),
+  },
+  {
+    id: 4,
+    coins: 2000,
+    priceINR: 2000,
+    priceUSD: (2000 / Inrperusd).toFixed(2),
+  },
 ];
 
 router.get("/packages", async (req, res) => {
@@ -32,18 +44,18 @@ router.get("/packages", async (req, res) => {
 });
 
 // Endpoint to initiate a payment
-router.post("/new_payment", async (req, res) => {
+router.post("/new_payment", userAuth, async (req, res) => {
   try {
-    const { type, package : packageid, userId, mobileNumber } = req.body;
+    const { type, package: packageid, userId, mobileNumber } = req.body;
     if (!packageid || !type) {
-      return res
-        .status(400)
-        .json({ message: "Invalid payment details" });
+      return res.status(400).json({ message: "Invalid payment details" });
     }
 
-    const amount = package.find((p) => p.id === packageid).priceINR ;
-    const usdAmount = package.find((p) => p.id === packageid).priceUSD ;
-    // const amount = 5;
+    const amount = package.find((p) => p.id === packageid).priceINR;
+    const usdAmount = package.find((p) => p.id === packageid).priceUSD;
+    if (!amount || !usdAmount) {
+      return res.status(400).json({ message: "Invalid package" });
+    }
 
     //generat is like this TRN3481423985 with crypto
     let merchantTransactionId;
@@ -56,78 +68,139 @@ router.post("/new_payment", async (req, res) => {
       });
     }
 
-   if(type ==="upi"){
-    const normalPayLoad = {
-      merchantId: MERCHANT_ID,
-      merchantTransactionId: merchantTransactionId,
-      merchantUserId: userId,
-      amount: ((amount * 100)+ (amount * 100 * taxGst)).toFixed(2),
-      redirectUrl: `${APP_BE_URL}/payment/status/${merchantTransactionId}`,
-      redirectMode: "REDIRECT",
-      mobileNumber: req.body.mobileNumber || "9793741405",
-      paymentInstrument: {
-        type: "PAY_PAGE",
-      },
-    };
-    const bufferObj = Buffer.from(JSON.stringify(normalPayLoad), "utf8");
-    const base64EncodedPayload = bufferObj.toString("base64");
-    const string = base64EncodedPayload + "/pg/v1/pay" + SALT_KEY;
-    const sha256_val = crypto.createHash("sha256").update(string).digest("hex");
-    const xVerifyChecksum = sha256_val + "###" + SALT_INDEX;
-
-    const response = await axios.post(
-      `${PHONE_PE_HOST_URL}/pg/v1/pay`,
-      {
-        request: base64EncodedPayload,
-      },
-      {
-        headers: {
-          "Content-Type": "application/json",
-          "X-VERIFY": xVerifyChecksum,
-          accept: "application/json",
+    if (type === "upi") {
+      const normalPayLoad = {
+        merchantId: MERCHANT_ID,
+        merchantTransactionId: merchantTransactionId,
+        merchantUserId: userId,
+        amount: (amount * 100 + amount * 100 * taxGst).toFixed(2),
+        redirectUrl: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
+        callbackUrl: `${process.env.Current_Url}/api/payment/phonepay_webhook`,
+        redirectMode: "REDIRECT",
+        mobileNumber: req.body.mobileNumber || "9793741405",
+        paymentInstrument: {
+          type: "PAY_PAGE",
+          user: req?.user?._id,
         },
-      }
-    );
+      };
+      const bufferObj = Buffer.from(JSON.stringify(normalPayLoad), "utf8");
+      const base64EncodedPayload = bufferObj.toString("base64");
+      const string = base64EncodedPayload + "/pg/v1/pay" + SALT_KEY;
+      const sha256_val = crypto
+        .createHash("sha256")
+        .update(string)
+        .digest("hex");
+      const xVerifyChecksum = sha256_val + "###" + SALT_INDEX;
 
-
-    return res.status(200).json({
-      success: true,
-      redirectUrl: response.data.data.instrumentResponse.redirectInfo.url,
-      merchantTransactionId: merchantTransactionId,
-    });
-   }else if(type === "card") {
-    const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      line_items: [
+      const response = await axios.post(
+        `${PHONE_PE_HOST_URL}/pg/v1/pay`,
         {
-          price_data: {
-            currency: 'usd',
-            product_data: {
-              name: `${package.find(p => p.id === packageid).coins} Coins Package`,
-              description: 'Digital coins for your account',
-            },
-            unit_amount: Math.round(usdAmount * 100) + Math.round(usdAmount * 100 * taxGst),
-          },
-          quantity: 1,
+          request: base64EncodedPayload,
         },
-      ],
-      mode: 'payment',
-      success_url: `${process.env.Client_Url}/payment/success?session_id={CHECKOUT_SESSION_ID}&txn=${merchantTransactionId}`,
-      cancel_url: `${process.env.Client_Url}/payment/cancel?txn=${merchantTransactionId}`,
-      metadata: {
-        package: packageid.toString(),
-        transactionId: merchantTransactionId,
-        userId: userId || "guest"
-      },
-      client_reference_id: merchantTransactionId,
-    });
-    
-    return res.status(200).json({
-      success: true,
-      sessionId: session.id,
-      redirectUrl: session.url,
-    });
-  }
+        {
+          headers: {
+            "Content-Type": "application/json",
+            "X-VERIFY": xVerifyChecksum,
+            accept: "application/json",
+          },
+        }
+      );
+
+      return res.status(200).json({
+        success: true,
+        redirectUrl: response.data.data.instrumentResponse.redirectInfo.url,
+        merchantTransactionId: merchantTransactionId,
+      });
+    } else if (type === "card") {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `${
+                  package.find((p) => p.id === packageid).coins
+                } Coins Package`,
+                description: "Digital coins for your account",
+              },
+              unit_amount:
+                Math.round(usdAmount * 100) +
+                Math.round(usdAmount * 100 * taxGst),
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        success_url: `${APP_BE_URL}/payment/status?session_id={CHECKOUT_SESSION_ID}&txn=${merchantTransactionId}`,
+        cancel_url: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
+        metadata: {
+          package: packageid.toString(),
+          transactionId: merchantTransactionId,
+          userId: userId || "guest",
+        },
+        client_reference_id: merchantTransactionId,
+      });
+
+      return res.status(200).json({
+        success: true,
+        sessionId: session.id,
+        redirectUrl: session.url,
+      });
+    } else if (type === "crypto") {
+      try {
+        const { currency } = req.body;
+        // || !["DOGE", "TRX", "LTC", "USDT" ].includes(currency)
+        if (!amount || amount <= 0) {
+          return res
+            .status(400)
+            .json({ success: false, message: "Invalid request" });
+        }
+
+        const additionalData = JSON.stringify({
+          userId: req.user._id,
+          secretpassword,
+        });
+        const paymentData = {
+          amount: Number(usdAmount + usdAmount * taxGst).toFixed(2),
+          currency: "USDT",
+          order_id: merchantTransactionId,
+          to_currency: "LTC",
+          lifetime: 3600,
+          additional_data: additionalData,
+          url_success: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
+          url_failure: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
+          url_callback: `${process.env.Current_Url}/api/payment/cryptomous_hook`,
+        };
+
+        const jsonString = JSON.stringify(paymentData);
+        const base64Data = Buffer.from(jsonString).toString("base64");
+        const apiKey =
+          "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+        const sign = crypto
+          .createHash("md5")
+          .update(base64Data + apiKey)
+          .digest("hex");
+        const response = await axios.post(
+          "https://api.cryptomus.com/v1/payment",
+          paymentData,
+          {
+            headers: {
+              "Content-Type": "application/json",
+              merchant: "fc2d156e-2d57-4d03-a3c1-cd2c735bbe69",
+              sign: sign,
+            },
+          }
+        );
+        return res
+          .status(200)
+          .json({ success: true, url: response?.data?.result?.url });
+      } catch (error) {
+        return res
+          .status(500)
+          .json({ success: false, message: "Something went wrong" });
+      }
+    }
   } catch (error) {
     console.error("Error initiating payment:", error);
     return res.status(500).json({
@@ -138,40 +211,20 @@ router.post("/new_payment", async (req, res) => {
   }
 });
 
-router.get("/status/:merchantTransactionId", async (req, res) => {
+router.get("/status", async (req, res) => {
   try {
-    const { merchantTransactionId } = req.params;
+    const { merchantTransactionId } = req.query;
 
     if (!merchantTransactionId) {
       return res.status(400).json({ message: "Transaction ID is required" });
     }
-   try {
-
-    const statusUrl = `${PHONE_PE_HOST_URL}/pg/v1/status/${MERCHANT_ID}/${merchantTransactionId}`;
-    const string = `/pg/v1/status/${MERCHANT_ID}/${merchantTransactionId}${SALT_KEY}`;
-    const sha256_val = crypto.createHash("sha256").update(string).digest("hex");
-    const xVerifyChecksum = sha256_val + "###" + SALT_INDEX;
-
-    // Make API call to check payment status
-    const response = await axios.get(statusUrl, {
-      headers: {
-        "Content-Type": "application/json",
-        "X-VERIFY": xVerifyChecksum,
-        "X-MERCHANT-ID": MERCHANT_ID,
-        accept: "application/json",
-      },
+    const transaction = await Transaction.findOne({
+      transactionId: merchantTransactionId,
     });
-
-    // Process response
-    if (response.data && response.data.code === "PAYMENT_SUCCESS") {
-      // Payment was successful
-      return res.redirect("http://localhost:3000/success");
-    } else {
-      throw new Error("Payment failed");
+    if (!transaction ) {
+      return res.status(200).json({ success: false, message: "Transaction not found" });
     }
-   } catch (error) {
-    //check for stipe here
-   }
+    return res.status(200).json({ success: true, transaction });
   } catch (error) {
     console.error("Error checking payment status:", error);
     return res.status(500).json({
@@ -183,74 +236,47 @@ router.get("/status/:merchantTransactionId", async (req, res) => {
 
 
 
-
-
-
 router.post("/phonepay_webhook", async (req, res) => {
   try {
-    const authHeader = req.headers['Authorization'];
+    const authHeader = req.headers["X-VERIFY"];
     if (!authHeader) {
-      return res.status(401).json({ status: "FAILED", message: "Authorization header missing" });
+      return res
+        .status(401)
+        .json({ status: "FAILED", message: "Authorization header missing" });
     }
-    
-    const username = "your_configured_username"; 
-    const password = "your_configured_password"; 
-    
-    const expectedAuth = crypto.createHash('sha256')
-      .update(`${username}:${password}`)
-      .digest('hex');
-    
-    if (authHeader !== expectedAuth) {
-      return res.status(401).json({ status: "FAILED", message: "Invalid authorization" });
+    const [checksum, saltIndex] = authHeader.split("###");
+    const { response: base64Response } = req.body;
+    const decodedString = Buffer.from(base64Response, "base64").toString(
+      "utf8"
+    );
+    const jsonResponse = JSON.parse(decodedString);
+    const stringToHash = base64Response + SALT_KEY;
+    const recalculatedChecksum = crypto
+      .createHash("sha256")
+      .update(stringToHash)
+      .digest("hex");
+
+    if (recalculatedChecksum !== checksum) {
+      return res
+        .status(401)
+        .json({ status: "FAILED", message: "Checksum verification failed" });
     }
-    
-    const payload = req.body.payload;
-    
-    if (req.body.event === "checkout.order.completed" && payload.state === "COMPLETED") {
-      const merchantTransactionId = payload.merchantOrderId;
-      const amount = payload.amount / 100; // Convert from paise to rupees
-      
-      // Update transaction status
-      const transaction = await Transaction.findOne({ transactionId: merchantTransactionId });
-      
-      if (transaction) {
-        transaction.status = 'completed';
-        transaction.lastUpdated = new Date();
-        transaction.amount = amount;
-        // Save additional data if needed
-        if (payload.paymentDetails && payload.paymentDetails.length > 0) {
-          transaction.paymentId = payload.paymentDetails[0].transactionId;
-          transaction.paymentMode = payload.paymentDetails[0].paymentMode;
-        }
-        await transaction.save();
-        
-        // Update user balance if needed
-        // This depends on your application logic
-        
-        console.log(`Transaction ${merchantTransactionId} completed successfully`);
-      } else {
-        console.error(`Transaction ${merchantTransactionId} not found in database`);
-      }
-      
+
+    if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      const transaction = new Transaction({
+        transactionId: jsonResponse.data.transactionId,
+        amount: Number(jsonResponse.data.amount),
+        type: "PhonePe",
+        user: jsonResponse?.data?.paymentInstrument?.user,
+        description: "Package purchase",
+      });
+      await transaction.save();
+      const userfromDb = await User.findById(jsonResponse?.data?.paymentInstrument?.user);
+      userfromDb.balance += Number(jsonResponse.data.amount);
+      await userfromDb.save();
       return res.status(200).json({ status: "SUCCESS" });
-    } else if (req.body.event === "checkout.order.failed") {
-      const merchantTransactionId = payload.merchantOrderId;
-      
-      // Update transaction as failed
-      await Transaction.updateOne(
-        { transactionId: merchantTransactionId },
-        { 
-          status: 'failed',
-          failureReason: payload.state || 'Payment Failed',
-          lastUpdated: new Date()
-        }
-      );
-      
-      return res.status(200).json({ status: "ACKNOWLEDGED" });
     } else {
-      // Handle other events like refunds
-      console.log(`Received event: ${req.body.event} with state: ${payload.state}`);
-      return res.status(200).json({ status: "ACKNOWLEDGED" });
+      return res.status(200).json({ status: "FAILED" });
     }
   } catch (error) {
     console.error("Error in PhonePe callback:", error);
@@ -258,13 +284,11 @@ router.post("/phonepay_webhook", async (req, res) => {
   }
 });
 
-
-
-
 router.post("/stripe_webhook", async (req, res) => {
-  const webhookSecret = "whsec_45074fb164f37434a6b09be0a10a2e2b706d46247b93ce61000760b29c4edaec";
+  const webhookSecret =
+    "whsec_LhZmMs4LqDxgRGVE8jETAlrHGhZUrkwO";
   try {
-    const signature = req.headers['stripe-signature'];
+    const signature = req.headers["stripe-signature"];
     let event;
     try {
       event = stripe.webhooks.constructEvent(
@@ -277,40 +301,123 @@ router.post("/stripe_webhook", async (req, res) => {
       return res.status(400).send(`Webhook Error: ${err.message}`);
     }
     switch (event.type) {
-      case 'checkout.session.completed':
+      case "checkout.session.completed":
         const paymentIntent = event.data.object;
         await handleSuccessfulPayment(paymentIntent);
         break;
-        
-      case 'payment_intent.payment_failed':
+
+      case "payment_intent.payment_failed":
         const failedPaymentIntent = event.data.object;
         break;
       default:
         console.log(`Unhandled event type ${event.type}`);
     }
-    res.status(200).json({received: true});
-    
+    res.status(200).json({ received: true });
   } catch (error) {
-    console.error('Error processing webhook:', error);
-    res.status(500).json({error: 'Webhook processing failed'});
+    console.error("Error processing webhook:", error);
+    res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 
 async function handleSuccessfulPayment(paymentIntent) {
   try {
     const { transactionId } = paymentIntent.metadata;
-    console.log(paymentIntent.metadata);
-    // const transaction = new Transaction({ 
-    //   transactionId,
-    //   amount: paymentIntent.amount / 100,
-    //   status: 'completed',
-    //   paymentMethod: 'stripe',
-    //  });
-    //   await transaction.save();
+    const transaction = new Transaction({
+      transactionId,
+      amount: paymentIntent.amount / 100,
+      status: "completed",
+      user: paymentIntent.metadata.userId,
+      description: "Package purchase",
+      type: "stripe",
+    });
+    await transaction.save();
   } catch (error) {
-    console.error('Error handling successful payment:', error);
+    console.error("Error handling successful payment:", error);
   }
 }
 
+router.post("/cryptomous_hook", async (req, res) => {
+  try {
+    const signature = req.headers.sign;
+
+    if (!signature) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing signature in headers",
+      });
+    }
+
+    const payload = req.body;
+
+    const payloadCopy = { ...payload };
+    if (payloadCopy?.sign) delete payloadCopy.sign;
+
+    const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
+    const apiKey =
+      "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+    const calculatedSignature = crypto
+      .createHash("md5")
+      .update(data + apiKey)
+      .digest("hex");
+
+    if (calculatedSignature !== signature) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid signature",
+      });
+    }
+
+    console.log("Payment notification received:", payload);
+
+    // Extract payment details
+    const { order_id, status, amount, currency } = payload;
+
+    const additionalData = JSON.parse(payload?.additional_data);
+    if (additionalData?.secretpassword !== secretpassword) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid additional data",
+      });
+    }
+
+    if (["paid", "paid_over", "wrong_amount"].includes(status)) {
+      let transaction = await Transaction.findOne({ transactionId: order_id });
+      if (!transaction) {
+        transaction = new Transaction({
+          transactionId: order_id,
+          amount: amount,
+          user: additionalData?.userId,
+          type: "Crypto",
+          description: "Package purchase",
+        });
+        await transaction.save();
+      } else {
+       return  res.status(200).json({
+          success: true,
+          message: "Webhook processed successfully",
+        });
+      }
+
+      // If payment is successful, update user balance
+      const user = await User.findById(transaction.userId);
+      if (user) {
+        user.balance = (parseFloat(user.balance) || 0) + parseFloat(amount);
+        await user.save();
+      }
+    }
+
+    // Send response to Cryptomus
+    return res.status(200).json({
+      success: true,
+      message: "Webhook processed successfully",
+    });
+  } catch (error) {
+    console.error("Webhook error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Error processing webhook",
+    });
+  }
+});
 
 module.exports = router;
