@@ -254,6 +254,7 @@ router.post("/phonepay_webhook", async (req, res) => {
       "utf8"
     );
     const jsonResponse = JSON.parse(decodedString);
+    console.log(jsonResponse);
     const stringToHash = base64Response + SALT_KEY;
     const recalculatedChecksum = crypto
       .createHash("sha256")
@@ -261,11 +262,11 @@ router.post("/phonepay_webhook", async (req, res) => {
       .digest("hex");
 
     if (recalculatedChecksum !== checksum) {
+      console.log("Checksum verification failed");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
-    console.log(jsonResponse);
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
       try {
         // Create new transaction
