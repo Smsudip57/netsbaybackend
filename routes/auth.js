@@ -158,6 +158,7 @@ router.post('/register', async (req, res) => {
 
 router.get('/getuserinfo', async (req, res) => {
   try {
+    
     const token = req.cookies.user;
     if (!token) {
       return res.status(401).json({
