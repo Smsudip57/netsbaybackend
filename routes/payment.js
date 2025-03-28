@@ -55,7 +55,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
     // const amount = package.find((p) => p.id === packageid).priceINR;
     // const usdAmount = package.find((p) => p.id === packageid).priceUSD;
     const amount = 1.1;
-    const usdAmount = 0.05;
+    const usdAmount = 0.50;
     if (!amount || !usdAmount) {
       return res.status(400).json({ message: "Invalid package" });
     }
