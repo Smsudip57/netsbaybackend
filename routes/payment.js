@@ -53,7 +53,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
 
     // const amount = package.find((p) => p.id === packageid).priceINR;
     // const usdAmount = package.find((p) => p.id === packageid).priceUSD;
-    const amount = 5;
+    const amount = 2;
     const usdAmount = 0.05;
     if (!amount || !usdAmount) {
       return res.status(400).json({ message: "Invalid package" });
@@ -75,7 +75,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
         merchantId: MERCHANT_ID,
         merchantTransactionId: merchantTransactionId,
         merchantUserId: userId,
-        amount: (amount * 100 + amount * 100 * taxGst).toFixed(2),
+        amount: Number((amount * 100 + amount * 100 * taxGst).toFixed(2)),
         redirectUrl: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
         callbackUrl: `${process.env.Current_Url}/api/payment/phonepay_webhook`,
         redirectMode: "REDIRECT",
