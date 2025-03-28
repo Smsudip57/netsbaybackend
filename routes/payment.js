@@ -244,6 +244,7 @@ router.post("/phonepay_webhook", async (req, res) => {
     console.log("hit here");
     const { userId: user_id, package } = req.query;
     console.log("hit here");
+    console.log(req.headers);
     const authHeader = req.headers["X-VERIFY"];
     if (!authHeader) {
       return res
