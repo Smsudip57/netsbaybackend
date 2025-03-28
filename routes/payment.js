@@ -241,18 +241,23 @@ router.get("/status", async (req, res) => {
 
 router.post("/phonepay_webhook", async (req, res) => {
   try {
+    console.log("hit here");
     const { userId: user_id, package } = req.query;
+    console.log("hit here");
     const authHeader = req.headers["X-VERIFY"];
     if (!authHeader) {
       return res
         .status(401)
         .json({ status: "FAILED", message: "Authorization header missing" });
     }
+    console.log("hit here");
     const [checksum, saltIndex] = authHeader.split("###");
     const { response: base64Response } = req.body;
+    console.log(base64Response);
     const decodedString = Buffer.from(base64Response, "base64").toString(
       "utf8"
     );
+    console.log("hit here");
     const jsonResponse = JSON.parse(decodedString);
     console.log(jsonResponse);
     const stringToHash = base64Response + SALT_KEY;
@@ -260,14 +265,16 @@ router.post("/phonepay_webhook", async (req, res) => {
       .createHash("sha256")
       .update(stringToHash)
       .digest("hex");
-
+    console.log("hit here");
     if (recalculatedChecksum !== checksum) {
       console.log("Checksum verification failed");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
+    console.log("hit here");
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      console.log("hit here");
       try {
         // Create new transaction
         const transaction = new Transaction({
@@ -279,7 +286,7 @@ router.post("/phonepay_webhook", async (req, res) => {
         });
 
         await transaction.save();
-
+        console.log("hit here");
         // Validate if package exists
         const packageDetails = package.find((p) => p.id === package)?.coins;
         if (!packageDetails) {
