@@ -69,6 +69,9 @@ router.post("/new_payment", userAuth, async (req, res) => {
       exists = await Transaction.findOne({
         transactionId: merchantTransactionId,
       });
+      exists = await Payment.findOne({
+        transactionID: merchantTransactionId,
+      });
     }
 
     if (type === "upi") {
@@ -241,24 +244,27 @@ router.get("/status", async (req, res) => {
 
 router.post("/phonepay_webhook", async (req, res) => {
   try {
-    console.log("hit here");
-    const { userId: user_id, package:packageId } = req.query;
-    console.log("hit here");
+    const { userId: user_id, package: packageId } = req.query;
     console.log(req.headers);
+    const packageDetails = package.find(
+      (p) => p.id === parseInt(packageId)
+    )?.coins;
+    if (!packageDetails) {
+      throw new Error("Invalid package selected.");
+    }
     const authHeader = req.headers["x-verify"];
     if (!authHeader) {
       return res
         .status(401)
         .json({ status: "FAILED", message: "Authorization header missing" });
     }
-    console.log("hit here");
     const [checksum, saltIndex] = authHeader.split("###");
     const { response: base64Response } = req.body;
     console.log(base64Response);
     const decodedString = Buffer.from(base64Response, "base64").toString(
       "utf8"
     );
-    console.log("hit here");
+
     const jsonResponse = JSON.parse(decodedString);
     console.log(jsonResponse);
     const stringToHash = base64Response + SALT_KEY;
@@ -266,38 +272,28 @@ router.post("/phonepay_webhook", async (req, res) => {
       .createHash("sha256")
       .update(stringToHash)
       .digest("hex");
-    console.log("hit here");
+
     if (recalculatedChecksum !== checksum) {
       console.log("Checksum verification failed");
       return res
         .status(401)
         .json({ status: "FAILED", message: "Checksum verification failed" });
     }
-    console.log("hit here");
+
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
-      console.log("hit here");
       try {
-        // Create new transaction
         const transaction = new Transaction({
           transactionId: jsonResponse.data.merchantTransactionId,
-          amount: Number(jsonResponse.data.amount) / 100,
+          amount: packageDetails,
           type: "PhonePe",
           user: user_id,
           description: "Package purchase",
         });
 
         await transaction.save();
-        console.log("hit here");
-        // Validate if package exists
-        const packageDetails = package.find((p) => p.id === parseInt(packageId))?.coins;
-        if (!packageDetails) {
-          throw new Error("Invalid package selected.");
-        }
-
-        // Create new payment
         const payment = new Payment({
           transactionID: jsonResponse.data.merchantTransactionId,
-          paymentType: "PhonePe",
+          paymentType: "Phonepe",
           user: user_id,
           coinAmout: packageDetails,
           Price: Number(jsonResponse.data.amount) / 100,
@@ -305,25 +301,9 @@ router.post("/phonepay_webhook", async (req, res) => {
 
         await payment.save();
 
-        console.log("Transaction and payment saved successfully.");
       } catch (error) {
-        // Log specific validation errors
-        if (error.name === "ValidationError") {
-          console.error("Validation Error:", error.message);
-        }
-        // Log MongoDB or database errors
-        else if (error.name === "MongoServerError") {
-          console.error("Database Error:", error.message);
-        }
-        // Handle custom or runtime errors
-        else {
-          console.error("Error:", error.message || error);
-        }
-
-        // Optionally rethrow or handle the error
-        // throw error;
+        console.log(error);
       }
-
       const userfromDb = await User.findById(user_id);
       userfromDb.balance += Number(packageDetails);
       await userfromDb.save();
