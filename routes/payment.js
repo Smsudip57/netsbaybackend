@@ -315,7 +315,9 @@ router.post("/phonepay_webhook", async (req, res) => {
         transactionID: jsonResponse.data.merchantTransactionId,
         user: user_id,
         coinAmount: packageDetails,
-        price: Number(jsonResponse.data.amount) / 100
+        price: Number(jsonResponse.data.amount) / 100,
+        type: "Phonepe",
+        description: "Package purchase"
       });
       
       const payment = new Payment({
