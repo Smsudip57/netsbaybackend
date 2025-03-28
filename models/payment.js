@@ -4,6 +4,7 @@ const paymentSchema = new mongoose.Schema({
   transactionID:{
     type: String, // TRN3481423985
     required: true,
+    unique: true, 
   },
   paymentType:{
     type: String,
