@@ -243,7 +243,7 @@ router.get("/status", async (req, res) => {
 
 router.post("/phonepay_webhook", async (req, res) => {
   try {
-    const { userId } = req.query;
+    const { userId:user_id } = req.query;
     console.log("✅ PhonePe webhook received:", {
       headers: req.headers,
       body: req.body,
@@ -300,7 +300,7 @@ router.post("/phonepay_webhook", async (req, res) => {
       console.log("💰 Payment success detected:", {
         transactionId: jsonResponse.data.transactionId,
         amount: jsonResponse.data.amount,
-        userId: userId,
+        userId: user_id,
       });
 
       const transaction = new Transaction({
