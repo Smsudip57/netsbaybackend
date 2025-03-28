@@ -242,7 +242,7 @@ router.get("/status", async (req, res) => {
 router.post("/phonepay_webhook", async (req, res) => {
   try {
     console.log("hit here");
-    const { userId: user_id, package } = req.query;
+    const { userId: user_id, package:packageId } = req.query;
     console.log("hit here");
     console.log(req.headers);
     const authHeader = req.headers["x-verify"];
@@ -289,7 +289,7 @@ router.post("/phonepay_webhook", async (req, res) => {
         await transaction.save();
         console.log("hit here");
         // Validate if package exists
-        const packageDetails = package.find((p) => p.id === package)?.coins;
+        const packageDetails = package.find((p) => p.id === packageId)?.coins;
         if (!packageDetails) {
           throw new Error("Invalid package selected.");
         }
