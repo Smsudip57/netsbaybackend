@@ -3,12 +3,10 @@ const mongoose = require('mongoose');
 const userSchema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: true,
     trim: true
   },
   lastName: {
     type: String,
-    required: true,
     trim: true
   },
   email: {
@@ -20,40 +18,42 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: true,
     minlength: 8
   },
   whatsapp: {
     type: String,
-    required: true,
     match: [/^\+?\d{10,15}$/, 'Please enter a valid WhatsApp number.']
   },
   address: {
     street: {
       type: String,
-      required: true,
       trim: true
     },
     city: {
       type: String,
-      required: true,
       trim: true
     },
     state: {
       type: String,
-      required: true,
       trim: true
     },
     country: {
       type: String,
-      required: true,
       trim: true
     },
     pincode: {
       type: String,
-      required: true,
       match: [/^\d{4,6}$/, 'Please enter a valid pincode.']
     }
+  },
+  varificationcode: {
+    code: {
+      type:Number,
+    },
+    createdAt: {
+      type: Date,
+      default: Date.now
+    },
   },
   organizationName: {
     type: String,
