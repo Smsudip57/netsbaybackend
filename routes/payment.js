@@ -447,6 +447,7 @@ router.post("/cryptomous_hook", async (req, res) => {
       });
     }
 
+   try {
     if (["paid", "paid_over", "wrong_amount"].includes(status) && packageCoins) {
       let transaction = await Transaction.findOne({ transactionId: order_id });
       if (!transaction) {
@@ -471,6 +472,9 @@ router.post("/cryptomous_hook", async (req, res) => {
         await user.save();
       }
     }
+   } catch (error) {
+    console.log(error);
+   }
 
     // Send response to Cryptomus
     return res.status(200).json({
