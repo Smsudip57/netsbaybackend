@@ -167,26 +167,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
           userId: req.user._id,
           secretpassword,
         });
-        function hookDfuction() {
-          const paymentData = {
-            uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
-            currency: "USDT",
-            url_callback: "https://your.site/callback",
-            network: "tron",
-            status: "paid",
-            order_id: "ORD1234233",
-          };
-          const jsonString = JSON.stringify(paymentData);
-          const base64Data = Buffer.from(jsonString).toString("base64");
-          const apiKey =
-            "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
-          const sign = crypto
-            .createHash("md5")
-            .update(base64Data + apiKey)
-            .digest("hex");
-          console.log(sign);
-        }
-        // hookDfuction();
+
         const paymentData = {
           amount: Number(usdAmount + usdAmount * taxGst).toFixed(2),
           currency: "USDT",
@@ -383,22 +364,64 @@ async function handleSuccessfulPayment(paymentIntent) {
   }
 }
 
+
+
+router.get("/hook_test", async (req, res) => {
+  try {
+    const paymentData = {
+      uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
+      currency: "USDT",
+      url_callback: "https://api.netbay.in/api/payment/cryptomous_hook",
+      network: "tron",
+      status: "paid",
+      order_id: "ORD1234233",
+    };
+    const jsonString = JSON.stringify(paymentData);
+    const base64Data = Buffer.from(jsonString).toString("base64");
+    const apiKey =
+      "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+    const sign = crypto
+      .createHash("md5")
+      .update(base64Data + apiKey)
+      .digest("hex");
+    console.log(sign);
+    const response = await axios.post(
+      "https://api.cryptomus.com/v1/test-webhook/payment",
+      paymentData,
+      {
+        headers: {
+          "Content-Type": "application/json",
+          merchant: "0e69ee46-304f-41b2-a6d4-3b57550af545",
+          sign: sign,
+        },
+      }
+    );
+    console.log(response.data);
+    res.status(200).json(response.data);
+  } catch (error) {
+    console.error("Error in hook test:", error);
+    res.status(500).json(error?.data?.response?.data);
+  }
+});
+
+
+
 router.post("/cryptomous_hook", async (req, res) => {
   try {
     const signature = req.headers.sign;
-
+console.log('sudip')
     if (!signature) {
       return res.status(400).json({
         success: false,
         message: "Missing signature in headers",
       });
     }
-
+    console.log('sudip')
     const payload = req.body;
-
+    console.log('sudip')
     const payloadCopy = { ...payload };
     if (payloadCopy?.sign) delete payloadCopy.sign;
-
+    console.log('sudip')
     const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
     const apiKey =
       "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
@@ -406,7 +429,7 @@ router.post("/cryptomous_hook", async (req, res) => {
       .createHash("md5")
       .update(data + apiKey)
       .digest("hex");
-
+      console.log('sudip')
     if (calculatedSignature !== signature) {
       console.log("Invalid signature");
       return res.status(403).json({
@@ -414,9 +437,9 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid signature",
       });
     }
-
+    console.log('sudip')
     console.log("Payment notification received:", payload);
-
+    console.log('sudip')
     // Extract payment details
     const { order_id, status, amount, currency } = payload;
 
