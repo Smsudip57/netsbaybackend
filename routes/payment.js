@@ -408,40 +408,25 @@ router.get("/hook_test", async (req, res) => {
 
 router.post("/cryptomous_hook", async (req, res) => {
   try {
-//     const signature = req.headers.sign;
-// console.log('sudip')
-// console.log(req.headers)
-//     if (!signature) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Missing signature in headers",
-//       });
-//     }
-//     console.log('sudip')
     const payload = req.body;
-    console.log('sudip')
-    // const payloadCopy = { ...payload };
-    // if (payloadCopy?.sign) delete payloadCopy.sign;
-    // console.log('sudip')
-    // const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
-    // const apiKey =
-    //   "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
-    // const calculatedSignature = crypto
-    //   .createHash("md5")
-    //   .update(data + apiKey)
-    //   .digest("hex");
-    //   console.log('sudip')
-    // if (calculatedSignature !== signature) {
-    //   console.log("Invalid signature");
-    //   return res.status(403).json({
-    //     success: false,
-    //     message: "Invalid signature",
-    //   });
-    // }
-    console.log('sudip')
+    const {sign: signature} = req.body
+    const payloadCopy = { ...payload };
+    if (payloadCopy?.sign) delete payloadCopy.sign;
+    const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
+    const apiKey =
+      "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+    const calculatedSignature = crypto
+      .createHash("md5")
+      .update(data + apiKey)
+      .digest("hex");
+    if (calculatedSignature !== signature) {
+      console.log("Invalid signature");
+      return res.status(403).json({
+        success: false,
+        message: "Invalid signature",
+      });
+    }
     console.log("Payment notification received:", payload);
-    console.log('sudip')
-    // Extract payment details
     const { order_id, status, amount, currency } = payload;
 
     const additionalData = JSON.parse(payload?.additional_data);
