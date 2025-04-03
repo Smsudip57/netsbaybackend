@@ -440,7 +440,7 @@ router.post("/cryptomous_hook", async (req, res) => {
     console.log("sudip");
     const packageCoins = package.find(
       (p) => p.id === parseInt(packageId)
-    );
+    )?.coins;
     if (!packageCoins) {
       return res.status(403).json({
         success: false,
