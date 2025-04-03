@@ -475,7 +475,7 @@ console.log(packageCoins);
         });
       }
       
-      const user = await User.findById(transaction.userId);
+      const user = await User.findById(userId);
       if (user) {
         user.balance = (parseFloat(user.balance) || 0) + parseFloat(amount);
         await user.save();
