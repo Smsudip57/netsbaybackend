@@ -410,7 +410,7 @@ router.post("/cryptomous_hook", async (req, res) => {
   try {
     const signature = req.headers.sign;
 console.log('sudip')
-console.log(headers)
+console.log(req.headers)
     if (!signature) {
       return res.status(400).json({
         success: false,
