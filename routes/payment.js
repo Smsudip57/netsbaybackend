@@ -454,11 +454,12 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid package selected.",
       });
     }
-
+console.log(packageCoins);
     if (["paid", "paid_over", "wrong_amount"].includes(status) && packageCoins) {
-      
+      console.log(packageCoins);
       let transaction = await Transaction.findOne({ transactionId: order_id });
       if (!transaction) {
+        console.log(packageCoins);
         transaction = new Transaction({
           transactionId: order_id,
           amount: packageCoins,
