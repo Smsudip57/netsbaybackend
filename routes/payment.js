@@ -436,7 +436,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid additional data",
       });
     }
-
+    console.log('sudip')
     const packageCoins = package.find(
       (p) => p.id === parseInt(additionalData?.package)
     );
@@ -446,6 +446,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid package selected.",
       });
     }
+    console.log('sudip')
 
     if (["paid", "paid_over", "wrong_amount"].includes(status)) {
       let transaction = await Transaction.findOne({ transactionId: order_id });
@@ -464,7 +465,7 @@ router.post("/cryptomous_hook", async (req, res) => {
           message: "Webhook processed successfully",
         });
       }
-
+      console.log('sudip')
       const user = await User.findById(transaction.userId);
       if (user) {
         user.balance = (parseFloat(user.balance) || 0) + parseFloat(amount);
