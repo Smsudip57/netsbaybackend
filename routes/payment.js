@@ -430,8 +430,8 @@ router.post("/cryptomous_hook", async (req, res) => {
     const { order_id, status, amount, currency } = payload;
 
     const additionalData = JSON.parse(payload?.additional_data);
+    console.log(additionalData)
     if (!additionalData?.package || !additionalData?.userId) {
-      console.log('sudip')
       return res.status(403).json({
         success: false,
         message: "Invalid additional data",
