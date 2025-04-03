@@ -177,7 +177,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
           additional_data: additionalData,
           url_success: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
           url_failure: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
-          url_callback: `${process.env.Current_Url}/api/payment/cryptomous_hook`,
+          url_callback: `${process.env.Current_Url}/api/payment/cryptomous_hook?userId=${userId}&package=${packageid}`,
         };
         const jsonString = JSON.stringify(paymentData);
         const base64Data = Buffer.from(jsonString).toString("base64");
@@ -366,14 +366,14 @@ async function handleSuccessfulPayment(paymentIntent) {
 
 router.get("/hook_test", async (req, res) => {
   try {
-    const additionalData = JSON.stringify({
-      userId: "67edb8dc0a1861ff8dcd61f7",
-      package: 1,
-    });
+    // const additionalData = JSON.stringify({
+    //   userId: "67edb8dc0a1861ff8dcd61f7",
+    //   package: 1,
+    // });
     const paymentData = {
       uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
       currency: "USDT",
-      url_callback: "https://api.netbay.in/api/payment/cryptomous_hook",
+      url_callback: `https://api.netbay.in/api/payment/cryptomous_hook?userId=67edb8dc0a1861ff8dcd61f7&package=${1}`,
       network: "tron",
       status: "paid",
       order_id: "ORD1234233",
@@ -429,17 +429,17 @@ router.post("/cryptomous_hook", async (req, res) => {
     console.log("Payment notification received:", payload);
     const { order_id, status, amount, currency } = payload;
 
-    const additionalData = JSON.parse(payload?.additional_data);
-    console.log(additionalData)
-    if (!additionalData?.package || !additionalData?.userId) {
+    const { userId, package } = req.query;
+    console.log(package, userId);
+    if (!package || !userId) {
       return res.status(403).json({
         success: false,
         message: "Invalid additional data",
       });
     }
-    console.log('sudip')
+    console.log("sudip");
     const packageCoins = package.find(
-      (p) => p.id === parseInt(additionalData?.package)
+      (p) => p.id === parseInt(package)
     );
     if (!packageCoins) {
       return res.status(403).json({
@@ -447,7 +447,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid package selected.",
       });
     }
-    console.log('sudip')
+    console.log("sudip");
 
     if (["paid", "paid_over", "wrong_amount"].includes(status)) {
       let transaction = await Transaction.findOne({ transactionId: order_id });
@@ -455,7 +455,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         transaction = new Transaction({
           transactionId: order_id,
           amount: packageCoins,
-          user: additionalData?.userId,
+          user: userId,
           type: "Crypto",
           description: "Package purchase",
         });
@@ -466,7 +466,7 @@ router.post("/cryptomous_hook", async (req, res) => {
           message: "Webhook processed successfully",
         });
       }
-      console.log('sudip')
+      console.log("sudip");
       const user = await User.findById(transaction.userId);
       if (user) {
         user.balance = (parseFloat(user.balance) || 0) + parseFloat(amount);
