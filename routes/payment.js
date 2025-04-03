@@ -366,17 +366,25 @@ async function handleSuccessfulPayment(paymentIntent) {
 
 router.get("/hook_test", async (req, res) => {
   try {
-    // const additionalData = JSON.stringify({
-    //   userId: "67edb8dc0a1861ff8dcd61f7",
-    //   package: 1,
-    // });
+    let merchantTransactionId;
+    let exists = true;
+    while (exists) {
+      const tenDigitCode = crypto.randomInt(1000000000, 9999999999);
+      merchantTransactionId = `TRN${tenDigitCode}`;
+      exists = await Transaction.findOne({
+        transactionId: merchantTransactionId,
+      });
+      exists = await Payment.findOne({
+        transactionID: merchantTransactionId,
+      });
+    }
     const paymentData = {
       uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
       currency: "USDT",
       url_callback: `https://api.netbay.in/api/payment/cryptomous_hook?userId=67edb8dc0a1861ff8dcd61f7&package=${1}`,
       network: "tron",
       status: "paid",
-      order_id: "ORD1234233",
+      order_id: merchantTransactionId,
       // additional_data: additionalData,
     };
     const jsonString = JSON.stringify(paymentData);
@@ -447,8 +455,8 @@ router.post("/cryptomous_hook", async (req, res) => {
       });
     }
 
-   try {
     if (["paid", "paid_over", "wrong_amount"].includes(status) && packageCoins) {
+      
       let transaction = await Transaction.findOne({ transactionId: order_id });
       if (!transaction) {
         transaction = new Transaction({
@@ -472,9 +480,6 @@ router.post("/cryptomous_hook", async (req, res) => {
         await user.save();
       }
     }
-   } catch (error) {
-    console.log(error);
-   }
 
     // Send response to Cryptomus
     return res.status(200).json({
