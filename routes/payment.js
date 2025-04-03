@@ -408,16 +408,16 @@ router.get("/hook_test", async (req, res) => {
 
 router.post("/cryptomous_hook", async (req, res) => {
   try {
-    const signature = req.headers.sign;
-console.log('sudip')
-console.log(req.headers)
-    if (!signature) {
-      return res.status(400).json({
-        success: false,
-        message: "Missing signature in headers",
-      });
-    }
-    console.log('sudip')
+//     const signature = req.headers.sign;
+// console.log('sudip')
+// console.log(req.headers)
+//     if (!signature) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Missing signature in headers",
+//       });
+//     }
+//     console.log('sudip')
     const payload = req.body;
     console.log('sudip')
     const payloadCopy = { ...payload };
