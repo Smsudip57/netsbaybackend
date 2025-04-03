@@ -377,7 +377,7 @@ router.get("/hook_test", async (req, res) => {
       network: "tron",
       status: "paid",
       order_id: "ORD1234233",
-      additional_data: additionalData,
+      // additional_data: additionalData,
     };
     const jsonString = JSON.stringify(paymentData);
     const base64Data = Buffer.from(jsonString).toString("base64");
@@ -429,8 +429,8 @@ router.post("/cryptomous_hook", async (req, res) => {
     console.log("Payment notification received:", payload);
     const { order_id, status, amount, currency } = payload;
 
-    const { userId, package } = req.query;
-    console.log(package, userId);
+    const { userId, package: packageId } = req.query;
+    console.log(packageId, userId);
     if (!package || !userId) {
       return res.status(403).json({
         success: false,
@@ -439,7 +439,7 @@ router.post("/cryptomous_hook", async (req, res) => {
     }
     console.log("sudip");
     const packageCoins = package.find(
-      (p) => p.id === parseInt(package)
+      (p) => p.id === parseInt(packageId)
     );
     if (!packageCoins) {
       return res.status(403).json({
