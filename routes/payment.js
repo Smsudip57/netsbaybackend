@@ -165,7 +165,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
 
         const additionalData = JSON.stringify({
           userId: req.user._id,
-          secretpassword,
+          package: packageid,
         });
 
         const paymentData = {
@@ -364,10 +364,12 @@ async function handleSuccessfulPayment(paymentIntent) {
   }
 }
 
-
-
 router.get("/hook_test", async (req, res) => {
   try {
+    const additionalData = JSON.stringify({
+      userId: "67edb8dc0a1861ff8dcd61f7",
+      package: 1,
+    });
     const paymentData = {
       uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
       currency: "USDT",
@@ -375,6 +377,7 @@ router.get("/hook_test", async (req, res) => {
       network: "tron",
       status: "paid",
       order_id: "ORD1234233",
+      additional_data: additionalData,
     };
     const jsonString = JSON.stringify(paymentData);
     const base64Data = Buffer.from(jsonString).toString("base64");
@@ -404,12 +407,10 @@ router.get("/hook_test", async (req, res) => {
   }
 });
 
-
-
 router.post("/cryptomous_hook", async (req, res) => {
   try {
     const payload = req.body;
-    const {sign: signature} = req.body
+    const { sign: signature } = req.body;
     const payloadCopy = { ...payload };
     if (payloadCopy?.sign) delete payloadCopy.sign;
     const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
@@ -420,7 +421,6 @@ router.post("/cryptomous_hook", async (req, res) => {
       .update(data + apiKey)
       .digest("hex");
     if (calculatedSignature !== signature) {
-      console.log("Invalid signature");
       return res.status(403).json({
         success: false,
         message: "Invalid signature",
@@ -430,10 +430,20 @@ router.post("/cryptomous_hook", async (req, res) => {
     const { order_id, status, amount, currency } = payload;
 
     const additionalData = JSON.parse(payload?.additional_data);
-    if (additionalData?.secretpassword !== secretpassword) {
+    if (additionalData?.package || !additionalData?.userId) {
       return res.status(403).json({
         success: false,
         message: "Invalid additional data",
+      });
+    }
+
+    const packageCoins = package.find(
+      (p) => p.id === parseInt(additionalData?.package)
+    );
+    if (!packageCoins) {
+      return res.status(403).json({
+        success: false,
+        message: "Invalid package selected.",
       });
     }
 
@@ -442,7 +452,7 @@ router.post("/cryptomous_hook", async (req, res) => {
       if (!transaction) {
         transaction = new Transaction({
           transactionId: order_id,
-          amount: amount,
+          amount: packageCoins,
           user: additionalData?.userId,
           type: "Crypto",
           description: "Package purchase",
@@ -455,7 +465,6 @@ router.post("/cryptomous_hook", async (req, res) => {
         });
       }
 
-      // If payment is successful, update user balance
       const user = await User.findById(transaction.userId);
       if (user) {
         user.balance = (parseFloat(user.balance) || 0) + parseFloat(amount);
