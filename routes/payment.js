@@ -420,24 +420,24 @@ router.post("/cryptomous_hook", async (req, res) => {
 //     console.log('sudip')
     const payload = req.body;
     console.log('sudip')
-    const payloadCopy = { ...payload };
-    if (payloadCopy?.sign) delete payloadCopy.sign;
-    console.log('sudip')
-    const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
-    const apiKey =
-      "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
-    const calculatedSignature = crypto
-      .createHash("md5")
-      .update(data + apiKey)
-      .digest("hex");
-      console.log('sudip')
-    if (calculatedSignature !== signature) {
-      console.log("Invalid signature");
-      return res.status(403).json({
-        success: false,
-        message: "Invalid signature",
-      });
-    }
+    // const payloadCopy = { ...payload };
+    // if (payloadCopy?.sign) delete payloadCopy.sign;
+    // console.log('sudip')
+    // const data = Buffer.from(JSON.stringify(payloadCopy)).toString("base64");
+    // const apiKey =
+    //   "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+    // const calculatedSignature = crypto
+    //   .createHash("md5")
+    //   .update(data + apiKey)
+    //   .digest("hex");
+    //   console.log('sudip')
+    // if (calculatedSignature !== signature) {
+    //   console.log("Invalid signature");
+    //   return res.status(403).json({
+    //     success: false,
+    //     message: "Invalid signature",
+    //   });
+    // }
     console.log('sudip')
     console.log("Payment notification received:", payload);
     console.log('sudip')
