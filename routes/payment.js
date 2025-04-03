@@ -55,7 +55,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
     const amount = package.find((p) => p.id === packageid).priceINR;
     // const usdAmount = package.find((p) => p.id === packageid).priceUSD;
     // const amount = 1.1;
-    const usdAmount = 0.50;
+    const usdAmount = 1.5;
     if (!amount || !usdAmount) {
       return res.status(400).json({ message: "Invalid package" });
     }
@@ -167,6 +167,26 @@ router.post("/new_payment", userAuth, async (req, res) => {
           userId: req.user._id,
           secretpassword,
         });
+        function hookDfuction() {
+          const paymentData = {
+            uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
+            currency: "USDT",
+            url_callback: "https://your.site/callback",
+            network: "tron",
+            status: "paid",
+            order_id: "ORD1234233",
+          };
+          const jsonString = JSON.stringify(paymentData);
+          const base64Data = Buffer.from(jsonString).toString("base64");
+          const apiKey =
+            "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+          const sign = crypto
+            .createHash("md5")
+            .update(base64Data + apiKey)
+            .digest("hex");
+          console.log(sign);
+        }
+        // hookDfuction();
         const paymentData = {
           amount: Number(usdAmount + usdAmount * taxGst).toFixed(2),
           currency: "USDT",
@@ -178,7 +198,6 @@ router.post("/new_payment", userAuth, async (req, res) => {
           url_failure: `${APP_BE_URL}/payment/status?txn=${merchantTransactionId}`,
           url_callback: `${process.env.Current_Url}/api/payment/cryptomous_hook`,
         };
-
         const jsonString = JSON.stringify(paymentData);
         const base64Data = Buffer.from(jsonString).toString("base64");
         const apiKey =
@@ -193,7 +212,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
           {
             headers: {
               "Content-Type": "application/json",
-              merchant: "fc2d156e-2d57-4d03-a3c1-cd2c735bbe69",
+              merchant: "0e69ee46-304f-41b2-a6d4-3b57550af545",
               sign: sign,
             },
           }
@@ -202,6 +221,7 @@ router.post("/new_payment", userAuth, async (req, res) => {
           .status(200)
           .json({ success: true, url: response?.data?.result?.url });
       } catch (error) {
+        console.error("Error creating payment link:", error);
         return res
           .status(500)
           .json({ success: false, message: "Something went wrong" });
@@ -296,7 +316,6 @@ router.post("/phonepay_webhook", async (req, res) => {
         });
 
         await payment.save();
-
       } catch (error) {
         console.log(error);
       }
@@ -389,6 +408,7 @@ router.post("/cryptomous_hook", async (req, res) => {
       .digest("hex");
 
     if (calculatedSignature !== signature) {
+      console.log("Invalid signature");
       return res.status(403).json({
         success: false,
         message: "Invalid signature",
