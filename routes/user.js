@@ -216,17 +216,22 @@ router.get("/purchase_service", async (req, res) => {
 router.get("/transactions", async (req, res) => {
   try {
     const user = req.user;
-    const transactions = await Transaction.find({ user: user._id });
+    const transactions = await Transaction.find({ user: user._id }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json(transactions);
   } catch (error) {
     return res.status(500).json({ message: "Failed to fetch transactions" });
   }
 });
 
+
 router.get("/paymentHistory", async (req, res) => {
   try {
     const user = req.user;
-    const history = await Payment.find({ user: user._id });
+    const history = await Payment.find({ user: user._id }).sort({
+      createdAt: -1,
+    });
     return res.status(200).json(history);
   } catch (error) {
     console.error("Error fetching transactions:", error);
