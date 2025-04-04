@@ -5,6 +5,7 @@ const Announcement = require("../models/announcements");
 const Service = require("../models/service");
 const Coupon = require("../models/coupon");
 const Transaction = require("../models/transaction");
+const Payment = require("../models/payment");
 const crypto = require("crypto");
 const router = express.Router();
 
@@ -218,6 +219,17 @@ router.get("/transactions", async (req, res) => {
     const transactions = await Transaction.find({ user: user._id });
     return res.status(200).json(transactions);
   } catch (error) {
+    return res.status(500).json({ message: "Failed to fetch transactions" });
+  }
+});
+
+router.get("/paymentHistory", async (req, res) => {
+  try {
+    const user = req.user;
+    const history = await Payment.find({ user: user._id });
+    return res.status(200).json(history);
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
     return res.status(500).json({ message: "Failed to fetch transactions" });
   }
 });

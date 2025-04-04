@@ -444,7 +444,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid additional data",
       });
     }
-    
+
     const packageCoins = package.find(
       (p) => p.id === parseInt(packageId)
     )?.coins;
@@ -454,12 +454,13 @@ router.post("/cryptomous_hook", async (req, res) => {
         message: "Invalid package selected.",
       });
     }
-console.log(packageCoins);
-    if (["paid", "paid_over", "wrong_amount"].includes(status) && packageCoins) {
-      console.log(packageCoins);
+
+    if (
+      ["paid", "paid_over", "wrong_amount"].includes(status) &&
+      packageCoins
+    ) {
       let transaction = await Transaction.findOne({ transactionId: order_id });
       if (!transaction) {
-        console.log(packageCoins);
         transaction = new Transaction({
           transactionId: order_id,
           amount: packageCoins,
@@ -468,17 +469,25 @@ console.log(packageCoins);
           description: "Package purchase",
         });
         await transaction.save();
+        const payment = new Payment({
+          transactionId: order_id,
+          user: userId,
+          paymentType:"Cryptomous",
+          coinAmout: packageCoins,
+          Price: Number(amount) / 100,
+        });
+        await payment.save();
+        const user = await User.findById(userId);
+        if (user && status !== "wrong_amount") {
+          user.balance =
+            (parseFloat(user.balance) || 0) + parseFloat(packageCoins);
+          await user.save();
+        }
       } else {
         return res.status(200).json({
           success: true,
           message: "Webhook processed successfully",
         });
-      }
-      
-      const user = await User.findById(userId);
-      if (user) {
-        user.balance = (parseFloat(user.balance) || 0) + parseFloat(packageCoins);
-        await user.save();
       }
     }
 
