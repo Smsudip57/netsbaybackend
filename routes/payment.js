@@ -474,7 +474,7 @@ router.post("/cryptomous_hook", async (req, res) => {
           user: userId,
           paymentType:"Cryptomous",
           coinAmout: packageCoins,
-          Price: Number(amount) / 100,
+          Price: Number(amount),
         });
         await payment.save();
         const user = await User.findById(userId);
@@ -491,7 +491,6 @@ router.post("/cryptomous_hook", async (req, res) => {
       }
     }
 
-    // Send response to Cryptomus
     return res.status(200).json({
       success: true,
       message: "Webhook processed successfully",
