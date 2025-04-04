@@ -470,7 +470,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         });
         await transaction.save();
         const payment = new Payment({
-          transactionId: order_id,
+          transactionID: order_id,
           user: userId,
           paymentType:"Cryptomous",
           coinAmout: packageCoins,
