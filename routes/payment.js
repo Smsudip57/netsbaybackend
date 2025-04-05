@@ -278,7 +278,57 @@ router.post("/phonepay_webhook", async (req, res) => {
     }
 
     if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      const userfromDb = await User.findById(user_id);
       try {
+        const Formatedtoday = () => {
+          return new Date(Date.now()).toLocaleDateString("en-GB", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        };
+
+        const getLastPhonepeTransaction = await Payment.findOne({
+          paymentType: { $in: ["Phonepe", "Bank_Transfer"] },
+        }).sort({
+          createdAt: -1,
+        });
+        let generatedInvoiceId;
+        if (getLastPhonepeTransaction && getLastPhonepeTransaction.invoiceId) {
+          const lastInvoiceId =
+            getLastPhonepeTransaction.invoiceId.split("-")[1];
+          const newInvoiceId = parseInt(lastInvoiceId) + 1;
+          generatedInvoiceId = `INV-${String(newInvoiceId).padStart(8, "0")}`;
+        } else {
+          generatedInvoiceId = `INV-00000001`;
+        }
+
+        const subTotalInNumber = parseFloat(jsonResponse.data.amount) / 100;
+        const actualPrice = subTotalInNumber / (1 + taxGst);
+        const uploadToExcel = async () => {
+          try {
+            await axios.post(
+              `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${generatedInvoiceId}&entry.897584116=${
+                userfromDb?.address?.state
+              }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
+                2
+              )}&entry.978406635=${
+                userfromDb?.address?.state === "UP"
+                  ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                  : ""
+              }&entry.555025617=${
+                userfromDb?.address?.state === "UP"
+                  ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                  : ""
+              }&entry.1209097425=${
+                userfromDb?.address?.state !== "UP"
+                  ? (subTotalInNumber - actualPrice).toFixed(2)
+                  : ""
+              }&entry.723332171=${subTotalInNumber.toFixed(2)}`
+            );
+          } catch (error) {}
+        };
+        uploadToExcel();
         const transaction = new Transaction({
           transactionId: jsonResponse.data.merchantTransactionId,
           amount: packageDetails,
@@ -289,6 +339,7 @@ router.post("/phonepay_webhook", async (req, res) => {
 
         await transaction.save();
         const payment = new Payment({
+          invoiceId: generatedInvoiceId,
           transactionID: jsonResponse.data.merchantTransactionId,
           paymentType: "Phonepe",
           user: user_id,
@@ -300,7 +351,9 @@ router.post("/phonepay_webhook", async (req, res) => {
       } catch (error) {
         console.log(error);
       }
-      const userfromDb = await User.findById(user_id);
+      if (!userfromDb) {
+        return res.status(200).json({ status: "FAILED" });
+      }
       userfromDb.balance += Number(packageDetails);
       await userfromDb.save();
       return res.status(200).json({ status: "SUCCESS" });
@@ -472,7 +525,7 @@ router.post("/cryptomous_hook", async (req, res) => {
         const payment = new Payment({
           transactionID: order_id,
           user: userId,
-          paymentType:"Cryptomous",
+          paymentType: "Cryptomous",
           coinAmout: packageCoins,
           Price: Number(amount),
         });

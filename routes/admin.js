@@ -52,7 +52,7 @@ router.put("/update_user", async (req, res) => {
       let existingTransaction;
      
       do {
-        newTransactionId = `TRN${crypto.randomInt(10000, 99999)}`;
+        newTransactionId = `TRN${crypto.randomInt(1000000000, 9999999999)}`;
         existingTransaction = await Transaction.findOne({ transactionId: newTransactionId });
       } while (existingTransaction);
       const transaction = new Transaction({
