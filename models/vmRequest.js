@@ -11,10 +11,15 @@ const vmrequestSchema = new mongoose.Schema({
         ref: 'Service',
         required:true
     },
+    relatedUser:{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required:true
+    },
     requestType:{
         type: String,
         required: true,
-        enum:["Rebuild","Start VM","Stop"]
+        enum:["Rebuild","Service","Renew"],
     },
     status:{
         type: String,
@@ -22,7 +27,10 @@ const vmrequestSchema = new mongoose.Schema({
         enum:["Pending","Approved","Rejected"],
         default:"Pending"
     },
-
+    createdAt:{
+        type: Date,
+        default: Date.now,
+    },
 })
 
 

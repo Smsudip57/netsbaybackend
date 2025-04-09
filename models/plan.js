@@ -45,6 +45,10 @@ const planSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  maxPendingService:{
+    type: Number,
+    default: 0
   }
  
 })

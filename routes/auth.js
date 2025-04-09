@@ -417,7 +417,7 @@ router.post("/register", async (req, res) => {
 
 router.post("/google-getway", async (req, res) => {
   try {
-    const { name, email, photoURL, googleId } = req.body;
+    const { name, email, photoURL, googleId, userRefCode } = req.body;
 
     if (!email || !googleId) {
       return res.status(400).json({
@@ -454,8 +454,6 @@ router.post("/google-getway", async (req, res) => {
           country: "",
           pincode: "",
         },
-        refCode: userRefCode,
-        referedBy: referrerId,
         role: "user",
         balance: 0,
         lastLogin: Date.now(),

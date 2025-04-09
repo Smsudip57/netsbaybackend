@@ -8,7 +8,18 @@ const Announcement = require("../models/announcements");
 const Coupon = require("../models/coupon");
 const System = require("../models/system");
 const Transaction = require("../models/transaction");
+const vmRequest = require("../models/vmRequest");
+const { route } = require("./user");
 const router = express.Router();
+const { getIO } = require("../socket/socket");
+const Notification = require("../models/notification");
+
+const notify = (data) => {
+  const io = getIO();
+  const { userId } = data;
+  if (!userId) throw new Error("User ID is required for notification");
+  io.to(userId).emit("notification", data);
+};
 
 router.get("/all_users", async (req, res) => {
   try {
@@ -36,37 +47,94 @@ router.get("/targetuser", async (req, res) => {
 
 router.put("/update_user", async (req, res) => {
   try {
-    const { userId,reason, balance, isBanned, revokedService } = req.body;
+    const { userId, reason, balance, isBanned, revokedService } = req.body;
 
     if (!userId) {
       return res.status(400).json({ message: "User ID is required" });
     }
-    
-    const existinguser = await User
-      .findById(userId)
+
+    const existinguser = await User.findById(userId);
 
     const updateFields = {};
-    if (balance !== undefined) {
+    if (typeof balance === "number") {
       updateFields.balance = balance < 0 ? 0 : parseFloat(balance).toFixed(2);
       let newTransactionId;
       let existingTransaction;
-     
+
       do {
         newTransactionId = `TRN${crypto.randomInt(1000000000, 9999999999)}`;
-        existingTransaction = await Transaction.findOne({ transactionId: newTransactionId });
+        existingTransaction = await Transaction.findOne({
+          transactionId: newTransactionId,
+        });
       } while (existingTransaction);
       const transaction = new Transaction({
         transactionId: newTransactionId,
         user: userId,
-        amount: updateFields.balance-existinguser.balance,
-        type: 'Admin-Update',
-        description: reason || 'Admin updated balance',
+        amount: updateFields.balance - existinguser.balance,
+        type: "Admin-Update",
+        description: reason || "Admin updated balance",
       });
       await transaction.save();
-    };
-    if (isBanned !== undefined) updateFields.isBanned = isBanned;
-    if (revokedService !== undefined)
+      const newNotification = new Notification({
+        userId: userId,
+        status:
+          updateFields.balance < existinguser.balance ? "error" : "success",
+        title: "Account Status Changed",
+        message: `${updateFields.balance - existinguser.balance} ${
+          updateFields.balance < existinguser.balance
+            ? "has been debited from your account"
+            : "has been credited from your account"
+        }.`,
+      });
+      await newNotification.save();
+      notify({
+        userId: userId,
+        status:
+          updateFields.balance < existinguser.balance ? "error" : "success",
+        title: "Account Status Changed",
+        message: `${updateFields.balance - existinguser.balance} ${
+          updateFields.balance < existinguser.balance
+            ? "has been debited from your account"
+            : "has been credited from your account"
+        }.`,
+      });
+    }
+    if (typeof isBanned === "boolean") {
+      updateFields.isBanned = isBanned;
+      const newNotification = new Notification({
+        userId: userId,
+        status: isBanned ? "error" : "success",
+        title: "Account Status Changed",
+        message: `Your account has been ${isBanned ? "banned" : "unbanned"}.`,
+      });
+      await newNotification.save();
+      notify({
+        userId: userId,
+        status: isBanned ? "error" : "success",
+        title: "Account Status Changed",
+        message: `Your account has been ${isBanned ? "banned" : "unbanned"}.`,
+      });
+    }
+    if (typeof revokedService === "boolean") {
       updateFields.revokedService = revokedService;
+      const newNotification = new Notification({
+        userId: userId,
+        status: revokedService ? "error" : "success",
+        title: "Account Status Changed",
+        message: `Your account has been ${
+          revokedService ? "revoked" : "unrevoked"
+        }.`,
+      });
+      await newNotification.save();
+      notify({
+        userId: userId,
+        status: revokedService ? "error" : "success",
+        title: "Account Status Changed",
+        message: `Your account has been ${
+          revokedService ? "revoked" : "unrevoked"
+        }.`,
+      });
+    }
 
     const updatedUser = await User.findByIdAndUpdate(userId, updateFields, {
       new: true,
@@ -84,7 +152,6 @@ router.put("/update_user", async (req, res) => {
     return res.status(500).json({ message: "Failed to update user" });
   }
 });
-
 
 router.post("/create_announcement", async (req, res) => {
   try {
@@ -134,6 +201,7 @@ router.post("/add_product", async (req, res) => {
       ipSet,
       price,
       inStock,
+      maxPendingService,
     } = req.body;
 
     const plan = new Plan({
@@ -147,6 +215,7 @@ router.post("/add_product", async (req, res) => {
       ipSet,
       price: Number(price),
       stock: Boolean(inStock),
+      maxPendingService: Number(maxPendingService),
     });
     await plan.save();
 
@@ -216,6 +285,7 @@ router.post("/update_product", async (req, res) => {
       ipSet,
       price,
       Stock,
+      maxPendingService,
     } = req.body;
 
     if (!productId) {
@@ -246,6 +316,8 @@ router.post("/update_product", async (req, res) => {
     if (ipSet) updateData.ipSet = ipSet;
     if (price) updateData.price = Number(price);
     if (Stock !== undefined) updateData.Stock = Boolean(Stock);
+    if (maxPendingService)
+      updateData.maxPendingService = Number(maxPendingService);
 
     const updatedPlan = await Plan.findOneAndUpdate(
       { productId },
@@ -330,9 +402,22 @@ router.post("/add_services", async (req, res) => {
 
 router.get("/services", async (req, res) => {
   try {
+    const now = new Date();
+    await Service.updateMany(
+      {
+        expiryDate: { $lt: now },
+        status: { $ne: "expired" },
+      },
+      {
+        status: "expired",
+        terminationDate: now,
+        terminationReason: "expired",
+      }
+    );
     const services = await Service.find()
       .populate("relatedProduct")
       .populate("relatedUser");
+
     return res.status(200).json(services);
   } catch (error) {
     console.error("Error fetching services:", error);
@@ -367,7 +452,7 @@ router.get("/all_coupons", async (req, res) => {
     console.error("Error fetching coupons:", error);
     return res.status(500).json({ message: "Failed to fetch coupons" });
   }
-})
+});
 
 router.post("/create_coupon", async (req, res) => {
   try {
@@ -398,12 +483,10 @@ router.post("/create_coupon", async (req, res) => {
         (!discountAmmount && !discountParcent) ||
         (discountAmmount && discountParcent)
       ) {
-        return res
-          .status(400)
-          .json({
-            message:
-              "Either discountAmmount or discountParcent is required for product coupons",
-          });
+        return res.status(400).json({
+          message:
+            "Either discountAmmount or discountParcent is required for product coupons",
+        });
       }
       if (productId.length > 0) {
         const validProducts = await Plan.find({
@@ -492,7 +575,6 @@ router.post("/create_coupon", async (req, res) => {
   }
 });
 
-
 router.delete("/delete_coupon", async (req, res) => {
   try {
     const { couponId } = req.query;
@@ -509,7 +591,6 @@ router.delete("/delete_coupon", async (req, res) => {
     return res.status(500).json({ message: "Failed to delete coupon" });
   }
 });
-
 
 //sytem
 router.get("/system", async (req, res) => {
@@ -547,7 +628,6 @@ router.post("/create_system", async (req, res) => {
   }
 });
 
-
 router.delete("/delete_system", async (req, res) => {
   try {
     const { id } = req.query;
@@ -565,6 +645,214 @@ router.delete("/delete_system", async (req, res) => {
   }
 });
 
+router.get("/requests", async (req, res) => {
+  try {
+    const requests = await vmRequest
+      .find()
+      .populate("productMongoID")
+      .populate("serviceMongoID")
+      .populate("relatedUser")
+      .sort({ createdAt: -1 });
+    return res.status(200).json(requests);
+  } catch (error) {
+    console.error("Error fetching requests:", error);
+    return res.status(500).json({ message: "Failed to fetch requests" });
+  }
+});
 
+router.get("/request", async (req, res) => {
+  try {
+    const { requestId } = req.query;
+    if (!requestId) {
+      return res.status(400).json({ message: "ID is required" });
+    }
+    const request = await vmRequest
+      .findById(requestId)
+      .populate("productMongoID")
+      .populate("serviceMongoID")
+      .populate("relatedUser");
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+    return res.status(200).json(request);
+  } catch (error) {
+    console.error("Error fetching request:", error);
+    return res.status(500).json({ message: "Failed to fetch request" });
+  }
+});
+
+router.post("/update_service", async (req, res) => {
+  try {
+    const {
+      serviceId,
+      terminate,
+      terminationReason,
+      ipAddress,
+      username,
+      password,
+      vmID,
+      EXTRLhash,
+      expiryDate,
+      productId,
+      purchedFrom,
+    } = req.body;
+    if (!serviceId) {
+      return res.status(400).json({ message: "Service ID is required" });
+    }
+    if (terminate && !terminationReason) {
+      return res
+        .status(400)
+        .json({ message: "Termination reason is required" });
+    }
+    const updateFields = {};
+    if (terminate) {
+      updateFields.status = "terminated";
+      updateFields.terminationDate = new Date();
+      updateFields.terminationReason = terminationReason;
+    } else if (terminate === false) {
+      updateFields.status = "active";
+      updateFields.terminationDate = null;
+      updateFields.terminationReason = null;
+    }
+    if (ipAddress) updateFields.ipAddress = ipAddress;
+    if (username) updateFields.username = username;
+    if (password) updateFields.password = password;
+    if (vmID) updateFields.vmID = vmID;
+    if (EXTRLhash) updateFields.EXTRLhash = EXTRLhash;
+    if (purchedFrom) updateFields.purchedFrom = purchedFrom;
+    if (expiryDate) {
+      updateFields.expiryDate = expiryDate;
+      if (new Date(expiryDate) < new Date()) {
+        updateFields.status = "expired";
+        updateFields.terminationDate = new Date();
+        updateFields.terminationReason = "expired";
+      } else {
+        updateFields.status = "active";
+        updateFields.terminationDate = null;
+        updateFields.terminationReason = null;
+      }
+    }
+    if (productId) {
+      const plan = await Plan.findOne({ productId: productId });
+      if (plan) updateFields.relatedProduct = plan._id;
+    }
+    const updatedService = await Service.findOneAndUpdate(
+      { serviceId: serviceId },
+      { $set: updateFields },
+      { new: true }
+    )
+      .populate("relatedProduct")
+      .populate("relatedUser");
+    if (!updatedService) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+    return res.status(200).json({
+      success: true,
+      message: "Service updated successfully",
+      service: {
+        ...updatedService.toObject(),
+        vmStatus:
+          terminate === false ||
+          (expiryDate && new Date(expiryDate) > new Date())
+            ? "running"
+            : updatedService.status,
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({ message: "Failed to update service" });
+  }
+});
+
+router.post("/process_request", async (req, res) => {
+  try {
+    const { requestId, approve } = req.body;
+    if (!requestId) {
+      return res.status(400).json({ message: "Request ID is required" });
+    }
+    const request = await vmRequest
+      .findById(requestId)
+      .populate("serviceMongoID")
+      .populate("productMongoID")
+      .populate("relatedUser");
+    if (!request) {
+      return res.status(404).json({ message: "Request not found" });
+    }
+    request.status = approve ? "Approved" : "Rejected";
+    const value = {};
+    const service = await Service.findById(request.serviceMongoID);
+    if (request?.requestType === "Service") {
+      if ((service.status = approve)) {
+        service.status = "active";
+        service.terminationDate = null;
+        service.terminationReason = null;
+      }
+      service.expiryDate = new Date(
+        new Date().setDate(new Date().getDate() + 30)
+      );
+      await service.save();
+      value.title = approve
+        ? "Service activation Approved"
+        : "Service activation Rejected";
+      value.message = approve
+        ? `Your service has been activated successfully.`
+        : `Your service has been rejected. Price has been refunded to your account.`;
+    }
+    if (request?.requestType === "Renew") {
+      if (approve) {
+        service.status = "active";
+        service.terminationDate = null;
+        service.terminationReason = null;
+        service.expiryDate = new Date(
+          new Date().setDate(new Date().getDate() + 30)
+        );
+        await service.save();
+        value.title = "Renewal Approved";
+        value.message = `Your service has been renewed successfully.`;
+      } else {
+        service.status = "expired";
+        if (new Date(service.expiryDate) > new Date())
+          service.expiryDate = new Date(
+            new Date().setDate(new Date().getDate() - 1)
+          );
+        const user = await User.findById(service.relatedUser);
+        user.balance += request.productMongoID.price;
+        await user.save();
+        await service.save();
+        value.title = "Renewal Rejected";
+        value.message = `Your service has been rejected.`;
+      }
+    } else {
+      value.title = approve ? "Rebuild Approved" : "Rebuild Rejected";
+      value.message = approve
+        ? `Your service has been rebuilt successfully.`
+        : `Your rebuild request has been rejected.`;
+    }
+    const newNotification = new Notification({
+      userId: request.relatedUser,
+      status:
+        !approve && request?.requestType === "Renew"
+          ? "Warning"
+          : approve
+          ? "success"
+          : "error",
+      ...value,
+    });
+    await newNotification.save();
+    notify({
+      userId: request.relatedUser,
+      status: updateFields.balance < existinguser.balance ? "error" : "success",
+      ...value,
+    });
+    await request.save();
+    return res.status(200).json({
+      success: true,
+      request: request,
+      message: `Request ${approve ? "approved" : "rejected"} successfully`,
+    });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: "Failed to process request" });
+  }
+});
 
 module.exports = router;

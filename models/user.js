@@ -102,7 +102,11 @@ const userSchema = new mongoose.Schema({
   lastLogin: {
     type: Date,
     default: Date.now
-  }
+  },
+  actionCounter: {
+    type: Date,
+    default: Date.now
+  },
 });
 
 const User = mongoose.models.User || mongoose.model('User', userSchema);

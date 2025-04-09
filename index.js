@@ -16,7 +16,7 @@ const PORT = process.env.PORT || 5000;
 
 const http = require('http'); // Required to integrate Socket.IO
 const { Server } = require('socket.io'); // Import the Socket.IO server
-const setupSocket = require('./socket/socket');
+const {setupSocket, getIO} = require('./socket/socket');
 
 
 const server = http.createServer(app); // Create the HTTP server for Express and Socket.IO
