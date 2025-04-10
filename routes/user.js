@@ -199,9 +199,10 @@ router.get("/service", async (req, res) => {
 
 router.post("/action", async (req, res) => {
   try {
-    // [start, stop, reboot, changepass, ]
     const { action, serviceId, password } = req.body;
-    console.log(req.body);
+    const user = req.user;
+    if (user?.revokedService)
+      return res.status(403).json({ message: "Your account is revoked" });
     if (
       !action ||
       !serviceId ||
@@ -212,7 +213,6 @@ router.post("/action", async (req, res) => {
         .status(400)
         .json({ message: "Action and Service ID are required" });
     }
-    const user = req.user;
     if (user.actionCounter && action !== "rebuild") {
       const timeSinceLastAction =
         Date.now() - new Date(user.actionCounter).getTime();
@@ -361,6 +361,8 @@ router.get("/purchase_service", async (req, res) => {
   try {
     const { productId, quantity, token } = req.query;
     const user = req.user;
+    if (user?.revokedService)
+      return res.status(403).json({ message: "Your account is revoked" });
     if (!productId) {
       return res.status(400).json({ message: "Product ID is required" });
     }
@@ -606,7 +608,6 @@ router.get("/paymentHistory", async (req, res) => {
   }
 });
 
-
 router.get("/notifications", async (req, res) => {
   try {
     const user = req.user;
@@ -620,6 +621,6 @@ router.get("/notifications", async (req, res) => {
   }
 });
 
-
+router.get("/requsts");
 
 module.exports = router;

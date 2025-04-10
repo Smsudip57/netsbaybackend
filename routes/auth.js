@@ -149,7 +149,7 @@ async function sendVerificationEmail(toEmail, verificationCode) {
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
-// console.log(req.body)
+    // console.log(req.body)
     if (!email || !password) {
       return res
         .status(400)
@@ -163,6 +163,11 @@ router.post("/login", async (req, res) => {
         message: "Invalid email or password.",
       });
     }
+    if (user.isBanned)
+      return res.status(401).json({
+        success: false,
+        message: "You are banned from using this service.",
+      });
     // console.log(user)
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -224,6 +229,11 @@ router.post("/register_verification", async (req, res) => {
         message: "Email is already registered.",
       });
     }
+    if (existingUser?.isBanned)
+      return res.status(409).json({
+        success: false,
+        message: "You are banned from using this service.",
+      });
 
     const code = Math.floor(100000 + Math.random() * 900000);
 
@@ -341,12 +351,14 @@ router.post("/register", async (req, res) => {
     // console.log(existingUser.varificationcode.code !== Number(code));
     if (
       existingUser.varificationcode.code !== Number(code) ||
-      (Date.now() - existingUser.varificationcode.createdAt) > 60000
+      Date.now() - existingUser.varificationcode.createdAt > 60000
     ) {
       return res.status(400).json({
         success: false,
         message: `Verification code is ${
-          existingUser.varificationcode.code !== Number(code) ? "incorrect" : "expired"
+          existingUser.varificationcode.code !== Number(code)
+            ? "incorrect"
+            : "expired"
         }.`,
       });
     }
@@ -461,11 +473,19 @@ router.post("/google-getway", async (req, res) => {
 
       await user.save();
     } else {
+      if (user.isBanned)
+        return res.status(401).json({
+          success: false,
+          message: "You are banned from using this service.",
+        });
       if (!user.googleId) {
         user.googleId = googleId;
       }
 
-      if (photoURL && user.profile.avatarUrl==="https://default-avatar-url.com") {
+      if (
+        photoURL &&
+        user.profile.avatarUrl === "https://default-avatar-url.com"
+      ) {
         user.profile.avatarUrl = photoURL;
       }
 
@@ -474,7 +494,6 @@ router.post("/google-getway", async (req, res) => {
     }
 
     user = user.toObject();
-    // delete user.password;
     delete user.varificationcode;
     const refreshtoken = jwt.sign({ userId: user._id }, JWT_SECRET, {
       expiresIn: "30d",
@@ -566,6 +585,14 @@ router.get("/getuserinfo", async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Unauthorized",
+      });
+    }
+    if (user.isBanned) {
+      res.clearCookie("refresh", { path: "/" });
+      res.clearCookie("access", { path: "/" });
+      return res.status(401).json({
+        success: false,
+        message: "You are banned from using this service.",
       });
     }
     if (!access) {
