@@ -17,12 +17,9 @@ const couponSchema = new mongoose.Schema({
     },
     user: {
         type: [String],
-        required: function () { 
-            return this.masterType === 'product'; 
-        },
         validate: {
             validator: function (users) {
-                return this.masterType !== 'product' || users.every(email => /^\S+@\S+\.\S+$/.test(email));
+                return users.length > 0 ? users.every(email => /^\S+@\S+\.\S+$/.test(email)): true;
             },
             message: 'Please enter a valid email address for users'
         }
@@ -31,7 +28,7 @@ const couponSchema = new mongoose.Schema({
         type: [String],
         validate: {
             validator: function (users) {
-                return this.masterType === 'product' && users.every(email => /^\S+@\S+\.\S+$/.test(email));
+                return users.length > 0 ? users.every(email => /^\S+@\S+\.\S+$/.test(email)): true;
             },
             message: 'Please enter a valid email address for prohibited users'
         }
@@ -61,14 +58,14 @@ const couponSchema = new mongoose.Schema({
     discountAmmount: {
         type: Number,
         required: function () { 
-            return this.masterType === 'product'; 
+            return this.masterType === 'product' && !this.discountParcent; 
         },
         message: 'Discount amount is required for product coupons'
     },
     discountParcent: {
         type: Number,
         required: function () { 
-            return this.masterType === 'product'; 
+            return this.masterType === 'product' && !this.discountAmmount; 
         },
         message: 'Discount percentage is required for product coupons'
     },
@@ -89,8 +86,8 @@ const couponSchema = new mongoose.Schema({
     },
     token: {
         type: String,
-        required: [true, 'Token is required'],
-        unique: true
+        required: [true, 'Coupon is required'],
+        unique: [true, 'Coupon must be unique']
     },
     isActive: {
         type: Boolean,

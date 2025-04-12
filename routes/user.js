@@ -25,7 +25,7 @@ const notify = (data) => {
   const { userId } = data;
   if (!userId) throw new Error("User ID is required for notification");
   console.log("Sending notification to user:", userId);
-  io.to(userId).emit("notification", data);
+  io.to(userId.toString()).emit("notification", data);
 };
 
 router.get("/all_plans", async (req, res) => {
@@ -72,28 +72,84 @@ router.get("/apply_coupon", async (req, res) => {
       return res.status(400).json({ message: "Coupon token is required" });
     }
     const coupon = await Coupon.findOne({ token: token });
-    if (
-      !coupon ||
-      coupon.masterType !== "product" ||
-      !coupon.isActive ||
-      coupon.endDate < new Date()
-    ) {
+    if (!coupon) {
       return res.status(404).json({ message: "Coupon not found" });
     }
-    if (coupon.maxUses > 0 && coupon.used >= coupon.maxUses) {
-      return res.status(400).json({ message: "Coupon has expired" });
-    }
-    if (coupon.user.length > 0) {
-      if (!coupon.user.includes(req.user._id)) {
+    if (coupon.masterType === "product") {
+      if (!coupon.isActive || coupon.endDate < new Date()) {
+        return res.status(404).json({ message: "Coupon not found" });
+      }
+      if (coupon.maxUses > 0 && coupon.used >= coupon.maxUses) {
+        return res.status(400).json({ message: "Coupon has expired" });
+      }
+      if (coupon.user.length > 0) {
+        if (!coupon.user.includes(req.user.email)) {
+          return res.status(400).json({ message: "Coupon not found" });
+        }
+      }
+      if (coupon.userProhibited.length > 0) {
+        if (coupon.userProhibited.includes(req.user.email)) {
+          return res.status(400).json({ message: "Coupon not found" });
+        }
+      }
+      return res.status(200).json(coupon);
+    } else {
+      if (!coupon.isActive || coupon.endDate < new Date()) {
+        return res.status(404).json({ message: "Coupon not found" });
+      }
+      if (coupon.maxUses > 0 && coupon.used >= coupon.maxUses) {
+        return res.status(400).json({ message: "Coupon has expired" });
+      }
+      if (coupon.userProhibited.includes(req.user.email)) {
         return res.status(400).json({ message: "Coupon not found" });
       }
-    }
-    if (coupon.userProhibited.length > 0) {
-      if (coupon.userProhibited.includes(req.user._id)) {
-        return res.status(400).json({ message: "Coupon not found" });
+      if (coupon.maxUses > 0) {
+        coupon.used += 1;
       }
+      let transactionId;
+      let existingTransaction;
+      do {
+        transactionId = `TRN${crypto.randomInt(1000000000, 9999999999)}`;
+        existingTransaction = await Transaction.findOne({
+          transactionId: transactionId,
+        });
+      } while (existingTransaction);
+      const transaction = new Transaction({
+        transactionId,
+        user: req.user._id,
+        amount: Number(Number(coupon.coinAmmount).toFixed(2)),
+        type: "Coupon",
+        description: `Coupon code applied.`,
+      });
+      await transaction.save();
+      const userfromDb = await User.findById(req.user._id);
+      userfromDb.balance += Number(Number(coupon.coinAmmount).toFixed(2));
+      await userfromDb.save();
+      await notify({
+        userId: req.user._id,
+        status: "success",
+        title: "Coupon Applied",
+        message: `Your account has been credited ${Number(
+          coupon.coinAmmount
+        ).toFixed(2)} NC.`,
+      });
+      const notification = new Notification({
+        userId: req.user._id,
+        status: "success",
+        title: "Coupon Applied",
+        message: `Your account has been credited ${Number(
+          coupon.coinAmmount
+        ).toFixed(2)} NC.`,
+      });
+      await notification.save();
+      coupon.userProhibited = [...coupon.userProhibited, req.user.email];
+      await coupon.save();
+      return res.status(200).json({
+        success: true,
+        message: "Coupon applied successfully",
+        user: userfromDb,
+      });
     }
-    return res.status(200).json(coupon);
   } catch (error) {
     console.error("Error fetching announcements:", error);
     return res.status(500).json({ message: "Failed to fetch announcements" });
@@ -388,18 +444,18 @@ router.get("/purchase_service", async (req, res) => {
         return res.status(400).json({ message: "Invalid Coupon" });
       }
       if (validToken.user.length > 0) {
-        if (!validToken.user.includes(user._id)) {
+        if (!validToken.user.includes(user.email)) {
           return res.status(400).json({ message: "Invalid Coupon" });
         }
       }
       if (validToken.userProhibited.length > 0) {
-        if (validToken.userProhibited.includes(user._id)) {
+        if (validToken.userProhibited.includes(user.email)) {
           return res.status(400).json({ message: "Invalid Coupon" });
         }
       }
       if (validToken.addUsersToProhibited) {
         const prohibitedUsers = validToken.prohibitedUsers || [];
-        prohibitedUsers.push(user._id);
+        prohibitedUsers.push(user.email);
         validToken.prohibitedUsers = prohibitedUsers;
       }
       if (validToken.maxUses > 0) {
@@ -598,9 +654,12 @@ router.get("/transactions", async (req, res) => {
 router.get("/paymentHistory", async (req, res) => {
   try {
     const user = req.user;
-    const history = await Payment.find({ user: user._id }).sort({
-      createdAt: -1,
-    });
+    const history =
+      user?.role === "admin"
+        ? await Payment.find().populate("user").sort({ createdAt: -1 })
+        : await Payment.find({ user: user._id }).sort({
+            createdAt: -1,
+          });
     return res.status(200).json(history);
   } catch (error) {
     console.error("Error fetching transactions:", error);
@@ -621,6 +680,20 @@ router.get("/notifications", async (req, res) => {
   }
 });
 
-router.get("/requsts");
+router.get("/requests", async (req, res) => {
+  try {
+    const user = req.user;
+    const requests = await VmRequest.find({ relatedUser: user._id })
+      .populate("productMongoID")
+      .populate("serviceMongoID")
+      .sort({ createdAt: -1 });
+    return res.status(200).json(requests);
+  } catch (error) {
+    console.error("Error fetching requests:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch requests" });
+  }
+});
 
 module.exports = router;

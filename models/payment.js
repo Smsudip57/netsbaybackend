@@ -13,6 +13,11 @@ const paymentSchema = new mongoose.Schema({
       message: "Invoice ID is required for PhonePe payments",
     },
   },
+  invoicetype:{
+    type: String,
+    enum:["Inclusive","Exclusive","Getway"],
+    default:"Getway"
+  },
   transactionID: {
     type: String, // TRN3481423985
     required: true,

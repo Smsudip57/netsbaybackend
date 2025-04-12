@@ -13,12 +13,13 @@ const { route } = require("./user");
 const router = express.Router();
 const { getIO } = require("../socket/socket");
 const Notification = require("../models/notification");
+const Payment = require("../models/payment");
 
 const notify = (data) => {
   const io = getIO();
   const { userId } = data;
   if (!userId) throw new Error("User ID is required for notification");
-  io.to(userId).emit("notification", data);
+  io.to(userId.toString()).emit("notification", data);
 };
 
 router.get("/all_users", async (req, res) => {
@@ -537,6 +538,7 @@ router.post("/create_coupon", async (req, res) => {
         endDate,
         token,
       });
+      console.log(newCoupon);
       const savedCoupon = await newCoupon.save();
       if (savedCoupon) {
         return res
@@ -555,6 +557,7 @@ router.post("/create_coupon", async (req, res) => {
         maxUses,
         token,
       });
+      console.log(newCoupon);
       const savedCoupon = await newCoupon.save();
       if (savedCoupon) {
         return res
@@ -591,6 +594,27 @@ router.delete("/delete_coupon", async (req, res) => {
     return res.status(500).json({ message: "Failed to delete coupon" });
   }
 });
+
+router.post("/coupon_status", async (req, res) => {
+  try {
+    const {value, couponId} = req.body;
+    if( typeof value !== "boolean"){
+      return res.status(400).json({ message: "Invalid request" });
+    }
+    if (!couponId) {
+      return res.status(400).json({ message: "Coupon ID is required" });
+    }
+    const coupon = await Coupon.findById(couponId);
+    if (!coupon) {
+      return res.status(404).json({ message: "Coupon not found" });
+    }
+    coupon.isActive = value;
+    await coupon.save();
+    return res.status(200).json({success: true, message: `Coupon ${value ? "activated" : "deactivated"} updated successfully`});
+  } catch (error) {
+    return res.status(500).json({success: false, message: "Failed to update coupon status" });
+  }
+})
 
 //sytem
 router.get("/system", async (req, res) => {
@@ -852,6 +876,148 @@ router.post("/process_request", async (req, res) => {
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: "Failed to process request" });
+  }
+});
+
+router.post("/create_invoice", async (req, res) => {
+  try {
+    const { email, amount, invoiceType, isPaid } = req.body;
+    const user = await User.findOne({ email: email });
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+    let newTransactionId = `TRN${crypto.randomInt(1000000000, 9999999999)}`;
+    let existingTransaction;
+    do {
+      newTransactionId = `TRN${crypto.randomInt(1000000000, 9999999999)}`;
+      existingTransaction = await Transaction.findOne({
+        transactionId: newTransactionId,
+      });
+    } while (existingTransaction);
+    const getLastPhonepeTransaction = await Payment.findOne({
+      paymentType: { $in: ["Phonepe", "Bank_Transfer"] },
+    }).sort({
+      createdAt: -1,
+    });
+    let generatedInvoiceId;
+    if (getLastPhonepeTransaction && getLastPhonepeTransaction.invoiceId) {
+      const lastInvoiceId = getLastPhonepeTransaction.invoiceId.split("-")[1];
+      const newInvoiceId = parseInt(lastInvoiceId) + 1;
+      generatedInvoiceId = `INV-${String(newInvoiceId).padStart(8, "0")}`;
+    } else {
+      generatedInvoiceId = `INV-00000001`;
+    }
+    if (isPaid) {
+      // const payment = new Payment({
+      //   invoiceId:generatedInvoiceId,
+      //   transactionId: newTransactionId,
+      //   user: user._id,
+      //   paymentType: "Bank_Transfer",
+      //   Price: amount,
+      // coinAmout
+      //   invoicetype: invoiceType,
+      //   status: isPaid ? "Success" : "Pending",
+      // });
+      // await payment.save();
+      // if (invoiceType === "Inclusive") {
+      const payment = new Payment({
+        invoiceId: generatedInvoiceId,
+        transactionID: newTransactionId,
+        user: user._id,
+        paymentType: "Bank_Transfer",
+        Price: amount,
+        coinAmout:
+          invoiceType === "Inclusive"
+            ? amount
+            : Number(Number(amount) / 1.18).toFixed(2),
+        invoicetype: invoiceType,
+        status: isPaid ? "Success" : "Pending",
+      });
+      await payment.save();
+      const transaction = new Transaction({
+        transactionId: newTransactionId,
+        user: user._id,
+        amount: invoiceType === "Inclusive" ? amount : Number(amount) / 1.18,
+        type: "Bank_Transfer",
+        description: `Custom Package Purchase`,
+      });
+      const Formatedtoday = () => {
+        return new Date(Date.now()).toLocaleDateString("en-GB", {
+          year: "numeric",
+          month: "short",
+          day: "numeric",
+        });
+      };
+      const subTotalInNumber = parseFloat(amount);
+      const actualPrice = subTotalInNumber / 1.18;
+      const uploadToExcel = async () => {
+        try {
+          await axios.post(
+            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${
+              payment?.invoiceId
+            }&entry.897584116=${
+              user?.address?.state
+            }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
+              2
+            )}&entry.978406635=${
+              user?.address?.state === "UP"
+                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                : ""
+            }&entry.555025617=${
+              user?.address?.state === "UP"
+                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                : ""
+            }&entry.1209097425=${
+              user?.address?.state !== "UP"
+                ? (subTotalInNumber - actualPrice).toFixed(2)
+                : ""
+            }&entry.723332171=${subTotalInNumber.toFixed(2)}`
+          );
+        } catch (error) {}
+      };
+      uploadToExcel();
+      await transaction.save();
+      user.balance += Number(amount);
+      await user.save();
+      notify({
+        userId: user?._id,
+        status: "success",
+        title: "Custom Package Purchased",
+        message: `You have successfully purchased a custom package.`,
+      });
+      const notification = new Notification({
+        userId: user?._id,
+        status: "success",
+        title: "Custom Package Purchased",
+        message: `You have successfully purchased a custom package.`,
+      });
+      await notification.save();
+    } else {
+      const payment = new Payment({
+        invoiceId: generatedInvoiceId,
+        transactionID: newTransactionId,
+        user: user._id,
+        paymentType: "Bank_Transfer",
+        Price:
+          invoiceType === "Inclusive"
+            ? amount
+            : Number(amount) + Number(amount) * 0.18,
+        coinAmout: amount,
+        invoicetype: invoiceType,
+        status: isPaid ? "Success" : "Pending",
+      });
+      await payment.save();
+    }
+    return res
+      .status(200)
+      .json({ success: true, message: "Invoice created successfully" });
+  } catch (error) {
+    console.error("Error creating invoice:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to create invoice" });
   }
 });
 

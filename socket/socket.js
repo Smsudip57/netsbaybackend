@@ -99,7 +99,9 @@ const setupSocket = (server) => {
       if (!userId) {
         return;
       }
+
       socket.join(userId.toString());
+      console.log("User joined room:", userId); 
     });
 
     socket.on("markNotificationsAsSeen", async (userId) => {

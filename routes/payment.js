@@ -227,6 +227,7 @@ router.get("/status", async (req, res) => {
     }
     const transaction = await Transaction.findOne({
       transactionId: merchantTransactionId,
+      status: "Success",
     });
     if (!transaction) {
       return res
@@ -366,6 +367,185 @@ router.post("/phonepay_webhook", async (req, res) => {
   }
 });
 
+router.post("/pay_pending", async (req, res) => {
+  try {
+    const { paymentId } = req.body;
+    if (!paymentId) {
+      return res.status(400).json({ message: "Invoice ID is required" });
+    }
+    const payment = await Payment.findOne({
+      _id: paymentId,
+      status: "Pending",
+    });
+    if (!payment) {
+      return res
+        .status(200)
+        .json({ success: false, message: "Invoice not found" });
+    }
+    const normalPayLoad = {
+      merchantId: MERCHANT_ID,
+      merchantTransactionId: payment.transactionID,
+      merchantUserId: payment.user,
+      amount: Number(payment.Price * 100),
+      redirectUrl: `${APP_BE_URL}/payment/status?txn=${payment.transactionID}`,
+      callbackUrl: `${
+        process.env.Current_Url
+      }/api/payment/pending_webhook?invoiceId=${payment._id.toString()}`,
+      redirectMode: "REDIRECT",
+      mobileNumber: req.body.mobileNumber || "9793741405",
+      paymentInstrument: {
+        type: "PAY_PAGE",
+        user: payment.user,
+      },
+    };
+
+    const bufferObj = Buffer.from(JSON.stringify(normalPayLoad), "utf8");
+    const base64EncodedPayload = bufferObj.toString("base64");
+    const string = base64EncodedPayload + "/pg/v1/pay" + SALT_KEY;
+    const sha256_val = crypto.createHash("sha256").update(string).digest("hex");
+    const xVerifyChecksum = sha256_val + "###" + SALT_INDEX;
+
+    const response = await axios.post(
+      `${PHONE_PE_HOST_URL}/pg/v1/pay`,
+      {
+        request: base64EncodedPayload,
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-VERIFY": xVerifyChecksum,
+          accept: "application/json",
+        },
+      }
+    );
+
+    return res.status(200).json({
+      success: true,
+      redirectUrl: response.data.data.instrumentResponse.redirectInfo.url,
+      // merchantTransactionId: merchantTransactionId,
+    });
+  } catch (error) {
+    console.error("Error in PhonePe callback:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Something went wrong" });
+  }
+});
+
+router.post("/pending_webhook", async (req, res) => {
+  try {
+    const { invoiceId } = req.query;
+    if (!invoiceId) {
+      return res.status(400).json({ message: "Invoice ID is required" });
+    }
+    const authHeader = req.headers["x-verify"];
+    if (!authHeader) {
+      return res
+        .status(401)
+        .json({ status: "FAILED", message: "Authorization header missing" });
+    }
+    const [checksum, saltIndex] = authHeader.split("###");
+    const { response: base64Response } = req.body;
+    const decodedString = Buffer.from(base64Response, "base64").toString(
+      "utf8"
+    );
+    const jsonResponse = JSON.parse(decodedString);
+    const stringToHash = base64Response + SALT_KEY;
+    const recalculatedChecksum = crypto
+      .createHash("sha256")
+      .update(stringToHash)
+      .digest("hex");
+
+    if (recalculatedChecksum !== checksum) {
+      console.log("Checksum verification failed");
+      return res
+        .status(401)
+        .json({ status: "FAILED", message: "Checksum verification failed" });
+    }
+
+    if (jsonResponse.success && jsonResponse.code === "PAYMENT_SUCCESS") {
+      const payment = await Payment.findOne({
+        _id: invoiceId,
+      }).populate("user");
+      if (!payment) {
+        return res
+          .status(200)
+          .json({ success: false, message: "Invoice not found" });
+      }
+      try {
+        const Formatedtoday = () => {
+          return new Date(Date.now()).toLocaleDateString("en-GB", {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+          });
+        };
+
+        const subTotalInNumber = parseFloat(jsonResponse.data.amount) / 100;
+        const actualPrice = subTotalInNumber / (1 + taxGst);
+        const uploadToExcel = async () => {
+          try {
+            await axios.post(
+              `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${
+                payment?.invoiceId
+              }&entry.897584116=${
+                payment?.user?.address?.state
+              }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
+                2
+              )}&entry.978406635=${
+                payment?.user?.address?.state === "UP"
+                  ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                  : ""
+              }&entry.555025617=${
+                payment?.user?.address?.state === "UP"
+                  ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                  : ""
+              }&entry.1209097425=${
+                payment?.user?.address?.state !== "UP"
+                  ? (subTotalInNumber - actualPrice).toFixed(2)
+                  : ""
+              }&entry.723332171=${subTotalInNumber.toFixed(2)}`
+            );
+          } catch (error) {}
+        };
+        uploadToExcel();
+        const transaction = new Transaction({
+          transactionId: jsonResponse.data.merchantTransactionId,
+          amount: payment?.coinAmout,
+          type: "Bank_Transfer",
+          user: payment?.user._id,
+          description: "Custom Package purchase",
+        });
+
+        await transaction.save();
+        payment.status = "Success";
+        payment.expiresAt = null;
+        await payment.save();
+        const user = await User.findById(payment?.user?._id);
+        if (user) {
+          user.balance += Number(payment.coinAmout).toFixed(2);
+          await user.save();
+        }
+      } catch (error) {
+        console.log(error);
+        await Payment.findOneAndDelete({
+          _id: invoiceId,
+        });
+      }
+
+      return res.status(200).json({ status: "SUCCESS" });
+    } else {
+      await Payment.findOneAndDelete({
+        _id: invoiceId,
+      });
+      return res.status(200).json({ status: "FAILED" });
+    }
+  } catch (error) {
+    console.error("Error in PhonePe callback:", error);
+    return res.status(500).json({ status: "ERROR", message: error.message });
+  }
+});
+
 router.post("/stripe_webhook", async (req, res) => {
   const webhookSecret = "whsec_LhZmMs4LqDxgRGVE8jETAlrHGhZUrkwO";
   try {
@@ -417,56 +597,56 @@ async function handleSuccessfulPayment(paymentIntent) {
   }
 }
 
-router.get("/hook_test", async (req, res) => {
-  try {
-    let merchantTransactionId;
-    let exists = true;
-    while (exists) {
-      const tenDigitCode = crypto.randomInt(1000000000, 9999999999);
-      merchantTransactionId = `TRN${tenDigitCode}`;
-      exists = await Transaction.findOne({
-        transactionId: merchantTransactionId,
-      });
-      exists = await Payment.findOne({
-        transactionID: merchantTransactionId,
-      });
-    }
-    const paymentData = {
-      uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
-      currency: "USDT",
-      url_callback: `https://api.netbay.in/api/payment/cryptomous_hook?userId=67edb8dc0a1861ff8dcd61f7&package=${1}`,
-      network: "tron",
-      status: "paid",
-      order_id: merchantTransactionId,
-      // additional_data: additionalData,
-    };
-    const jsonString = JSON.stringify(paymentData);
-    const base64Data = Buffer.from(jsonString).toString("base64");
-    const apiKey =
-      "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
-    const sign = crypto
-      .createHash("md5")
-      .update(base64Data + apiKey)
-      .digest("hex");
-    console.log(sign);
-    const response = await axios.post(
-      "https://api.cryptomus.com/v1/test-webhook/payment",
-      paymentData,
-      {
-        headers: {
-          "Content-Type": "application/json",
-          merchant: "0e69ee46-304f-41b2-a6d4-3b57550af545",
-          sign: sign,
-        },
-      }
-    );
-    console.log(response.data);
-    res.status(200).json(response.data);
-  } catch (error) {
-    console.error("Error in hook test:", error);
-    res.status(500).json(error?.data?.response?.data);
-  }
-});
+// router.get("/hook_test", async (req, res) => {
+//   try {
+//     let merchantTransactionId;
+//     let exists = true;
+//     while (exists) {
+//       const tenDigitCode = crypto.randomInt(1000000000, 9999999999);
+//       merchantTransactionId = `TRN${tenDigitCode}`;
+//       exists = await Transaction.findOne({
+//         transactionId: merchantTransactionId,
+//       });
+//       exists = await Payment.findOne({
+//         transactionID: merchantTransactionId,
+//       });
+//     }
+//     const paymentData = {
+//       uuid: "e1830f1b-50fc-432e-80ec-15b58ccac867",
+//       currency: "USDT",
+//       url_callback: `https://api.netbay.in/api/payment/cryptomous_hook?userId=67edb8dc0a1861ff8dcd61f7&package=${1}`,
+//       network: "tron",
+//       status: "paid",
+//       order_id: merchantTransactionId,
+//       // additional_data: additionalData,
+//     };
+//     const jsonString = JSON.stringify(paymentData);
+//     const base64Data = Buffer.from(jsonString).toString("base64");
+//     const apiKey =
+//       "O4zKwImbVgLfj6slTSkxvOz4gbeuWyOa0119Ttjqu5qCxQkhxIjJTzlkeHWseVlycKJ3V352ZgRtVhpk7GmsT6WhQTpwIZ6Vr0khmGWKH0pSKJtrCCYvgU9NtR9Vj40z";
+//     const sign = crypto
+//       .createHash("md5")
+//       .update(base64Data + apiKey)
+//       .digest("hex");
+//     console.log(sign);
+//     const response = await axios.post(
+//       "https://api.cryptomus.com/v1/test-webhook/payment",
+//       paymentData,
+//       {
+//         headers: {
+//           "Content-Type": "application/json",
+//           merchant: "0e69ee46-304f-41b2-a6d4-3b57550af545",
+//           sign: sign,
+//         },
+//       }
+//     );
+//     console.log(response.data);
+//     res.status(200).json(response.data);
+//   } catch (error) {
+//     console.error("Error in hook test:", error);
+//     res.status(500).json(error?.data?.response?.data);
+//   }
+// });
 
 router.post("/cryptomous_hook", async (req, res) => {
   try {
