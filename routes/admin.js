@@ -81,11 +81,10 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${
-          updateFields.balance < existinguser.balance
-            ? "has been debited from your account"
-            : "has been credited from your account"
-        }.`,
+        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
+          ? "has been debited from your account"
+          : "has been credited from your account"
+          }.`,
       });
       await newNotification.save();
       notify({
@@ -93,11 +92,10 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${
-          updateFields.balance < existinguser.balance
-            ? "has been debited from your account"
-            : "has been credited from your account"
-        }.`,
+        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
+          ? "has been debited from your account"
+          : "has been credited from your account"
+          }.`,
       });
     }
     if (typeof isBanned === "boolean") {
@@ -122,18 +120,16 @@ router.put("/update_user", async (req, res) => {
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${
-          revokedService ? "revoked" : "unrevoked"
-        }.`,
+        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
+          }.`,
       });
       await newNotification.save();
       notify({
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${
-          revokedService ? "revoked" : "unrevoked"
-        }.`,
+        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
+          }.`,
       });
     }
 
@@ -262,9 +258,15 @@ router.post("/delete_product", async (req, res) => {
     if (!productId) {
       return res.status(400).json({ message: "Product ID is required" });
     }
-    const deletedPlan = await Plan.findOneAndDelete({ productId: productId });
-    if (!deletedPlan) {
-      return res.status(404).json({ message: "Plan not found" });
+    const targetProduct = await Plan.findOne({ productId: productId });
+    if (!targetProduct) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+    const relatedServices = await Service.find({ relatedProduct: targetProduct._id });
+    if (relatedServices.length > 0) {
+      return res.status(400).json({ message: "Product is in use" });
+    } else {
+      await Plan.deleteOne({ productId: productId });
     }
     return res.status(200).json({ message: "Plan deleted successfully" });
   } catch (error) {
@@ -597,8 +599,8 @@ router.delete("/delete_coupon", async (req, res) => {
 
 router.post("/coupon_status", async (req, res) => {
   try {
-    const {value, couponId} = req.body;
-    if( typeof value !== "boolean"){
+    const { value, couponId } = req.body;
+    if (typeof value !== "boolean") {
       return res.status(400).json({ message: "Invalid request" });
     }
     if (!couponId) {
@@ -610,9 +612,9 @@ router.post("/coupon_status", async (req, res) => {
     }
     coupon.isActive = value;
     await coupon.save();
-    return res.status(200).json({success: true, message: `Coupon ${value ? "activated" : "deactivated"} updated successfully`});
+    return res.status(200).json({ success: true, message: `Coupon ${value ? "activated" : "deactivated"} updated successfully` });
   } catch (error) {
-    return res.status(500).json({success: false, message: "Failed to update coupon status" });
+    return res.status(500).json({ success: false, message: "Failed to update coupon status" });
   }
 })
 
@@ -657,6 +659,27 @@ router.delete("/delete_system", async (req, res) => {
     const { id } = req.query;
     if (!id) {
       return res.status(400).json({ message: "ID is required" });
+    }
+
+    const targetSystem = await System.findById(id);
+    if (!targetSystem) {
+      return res.status(404).json({ message: "System not found" })
+    }
+    if (targetSystem?.name === "ipSets" || targetSystem?.name === "osType") {
+      const relatedPlans = await Plan.find({ ipSet: targetSystem?.value });
+      if (relatedPlans?.length > 0) {
+        return res.status(400).json({ message: "Constant is already being utilized" });
+      }
+      const relatedPlanss = await Plan.find({ Os: targetSystem?.value });
+      if (relatedPlanss?.length > 0) {
+        return res.status(400).json({ message: "Constant is already being utilized" });
+      }
+    } else if (targetSystem?.name === "providers") {
+      const relatedPlans = await Service.find({ purchedFrom: targetSystem?.value });
+      if (relatedPlans?.length > 0) {
+        return res.status(400).json({ message: "Constant is already being utilized" });
+      }
+
     }
     const deletedSystem = await System.findByIdAndDelete(id);
     if (!deletedSystem) {
@@ -719,10 +742,13 @@ router.post("/update_service", async (req, res) => {
       expiryDate,
       productId,
       purchedFrom,
+      relatedUser
     } = req.body;
     if (!serviceId) {
       return res.status(400).json({ message: "Service ID is required" });
     }
+    // console.log(req.body)
+    // return res.status(400).json({messgae:" this is a dummy data."})
     if (terminate && !terminationReason) {
       return res
         .status(400)
@@ -756,6 +782,13 @@ router.post("/update_service", async (req, res) => {
         updateFields.terminationReason = null;
       }
     }
+    if (relatedUser) {
+      const userExists = await User.findById(relatedUser)
+      if (userExists) {
+        updateFields.relatedUser = userExists._id
+        if (!expiryDate) updateFields.expiryDate = new Date(new Date().setDate(new Date().getDate() + 30));
+      }
+    }
     if (productId) {
       const plan = await Plan.findOne({ productId: productId });
       if (plan) updateFields.relatedProduct = plan._id;
@@ -777,7 +810,7 @@ router.post("/update_service", async (req, res) => {
         ...updatedService.toObject(),
         vmStatus:
           terminate === false ||
-          (expiryDate && new Date(expiryDate) > new Date())
+            (expiryDate && new Date(expiryDate) > new Date())
             ? "running"
             : updatedService.status,
       },
@@ -857,8 +890,8 @@ router.post("/process_request", async (req, res) => {
         !approve && request?.requestType === "Renew"
           ? "Warning"
           : approve
-          ? "success"
-          : "error",
+            ? "success"
+            : "error",
       ...value,
     });
     await newNotification.save();
@@ -955,27 +988,22 @@ router.post("/create_invoice", async (req, res) => {
       const uploadToExcel = async () => {
         try {
           await axios.post(
-            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${
-              payment?.invoiceId
-            }&entry.897584116=${
-              user?.address?.state
+            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${payment?.invoiceId
+            }&entry.897584116=${user?.address?.state
             }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
               2
-            )}&entry.978406635=${
-              user?.address?.state === "UP"
-                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-                : ""
-            }&entry.555025617=${
-              user?.address?.state === "UP"
-                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-                : ""
-            }&entry.1209097425=${
-              user?.address?.state !== "UP"
-                ? (subTotalInNumber - actualPrice).toFixed(2)
-                : ""
+            )}&entry.978406635=${user?.address?.state === "UP"
+              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+              : ""
+            }&entry.555025617=${user?.address?.state === "UP"
+              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+              : ""
+            }&entry.1209097425=${user?.address?.state !== "UP"
+              ? (subTotalInNumber - actualPrice).toFixed(2)
+              : ""
             }&entry.723332171=${subTotalInNumber.toFixed(2)}`
           );
-        } catch (error) {}
+        } catch (error) { }
       };
       uploadToExcel();
       await transaction.save();
@@ -1018,6 +1046,45 @@ router.post("/create_invoice", async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to create invoice" });
+  }
+});
+
+
+router.get("/search_user_by_email", async (req, res) => {
+  try {
+    const { email } = req.query;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email parameter is required" });
+    }
+
+    const users = await User.find({
+      email: { $regex: email, $options: 'i' },
+      role: { $ne: 'admin' } // Exclude admin roles
+    }).select('email firstName lastName _id');
+    // console.log(users)
+    return res.status(200).json(users);
+  } catch (error) {
+    console.error("Error searching users by email:", error);
+    return res.status(500).json({ message: "Failed to search users" });
+  }
+});
+
+
+router.get("/search_productid", async (req, res) => {
+  try {
+    const { id } = req.query;
+
+    if (!id) {
+      return res.status(400).json({ message: "Email parameter is required" });
+    }
+    const product = await Plan.find({
+      productId: { $regex: id, $options: 'i' }
+    })
+    return res.status(200).json(product);
+  } catch (error) {
+    console.error("Error searching users by email:", error);
+    return res.status(500).json({ message: "Failed to search users" });
   }
 });
 
