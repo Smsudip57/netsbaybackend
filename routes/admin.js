@@ -695,7 +695,7 @@ router.delete("/delete_system", async (req, res) => {
 router.get("/requests", async (req, res) => {
   try {
     const requests = await vmRequest
-      .find()
+      .find({ status: "Pending" })
       .populate("productMongoID")
       .populate("serviceMongoID")
       .populate("relatedUser")
@@ -786,7 +786,11 @@ router.post("/update_service", async (req, res) => {
       const userExists = await User.findById(relatedUser)
       if (userExists) {
         updateFields.relatedUser = userExists._id
-        if (!expiryDate) updateFields.expiryDate = new Date(new Date().setDate(new Date().getDate() + 30));
+        updateFields.status = "active";
+        if (!expiryDate) {
+          updateFields.expiryDate = new Date(new Date().setDate(new Date().getDate() + 30));
+        }
+
       }
     }
     if (productId) {
