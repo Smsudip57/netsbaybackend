@@ -81,10 +81,11 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
-          ? "has been debited from your account"
-          : "has been credited from your account"
-          }.`,
+        message: `${updateFields.balance - existinguser.balance} ${
+          updateFields.balance < existinguser.balance
+            ? "has been debited from your account"
+            : "has been credited from your account"
+        }.`,
       });
       await newNotification.save();
       notify({
@@ -92,10 +93,11 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
-          ? "has been debited from your account"
-          : "has been credited from your account"
-          }.`,
+        message: `${updateFields.balance - existinguser.balance} ${
+          updateFields.balance < existinguser.balance
+            ? "has been debited from your account"
+            : "has been credited from your account"
+        }.`,
       });
     }
     if (typeof isBanned === "boolean") {
@@ -120,16 +122,18 @@ router.put("/update_user", async (req, res) => {
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
-          }.`,
+        message: `Your account has been ${
+          revokedService ? "revoked" : "unrevoked"
+        }.`,
       });
       await newNotification.save();
       notify({
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
-          }.`,
+        message: `Your account has been ${
+          revokedService ? "revoked" : "unrevoked"
+        }.`,
       });
     }
 
@@ -262,7 +266,9 @@ router.post("/delete_product", async (req, res) => {
     if (!targetProduct) {
       return res.status(404).json({ message: "Product not found" });
     }
-    const relatedServices = await Service.find({ relatedProduct: targetProduct._id });
+    const relatedServices = await Service.find({
+      relatedProduct: targetProduct._id,
+    });
     if (relatedServices.length > 0) {
       return res.status(400).json({ message: "Product is in use" });
     } else {
@@ -612,11 +618,18 @@ router.post("/coupon_status", async (req, res) => {
     }
     coupon.isActive = value;
     await coupon.save();
-    return res.status(200).json({ success: true, message: `Coupon ${value ? "activated" : "deactivated"} updated successfully` });
+    return res.status(200).json({
+      success: true,
+      message: `Coupon ${
+        value ? "activated" : "deactivated"
+      } updated successfully`,
+    });
   } catch (error) {
-    return res.status(500).json({ success: false, message: "Failed to update coupon status" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to update coupon status" });
   }
-})
+});
 
 //sytem
 router.get("/system", async (req, res) => {
@@ -663,23 +676,30 @@ router.delete("/delete_system", async (req, res) => {
 
     const targetSystem = await System.findById(id);
     if (!targetSystem) {
-      return res.status(404).json({ message: "System not found" })
+      return res.status(404).json({ message: "System not found" });
     }
     if (targetSystem?.name === "ipSets" || targetSystem?.name === "osType") {
       const relatedPlans = await Plan.find({ ipSet: targetSystem?.value });
       if (relatedPlans?.length > 0) {
-        return res.status(400).json({ message: "Constant is already being utilized" });
+        return res
+          .status(400)
+          .json({ message: "Constant is already being utilized" });
       }
       const relatedPlanss = await Plan.find({ Os: targetSystem?.value });
       if (relatedPlanss?.length > 0) {
-        return res.status(400).json({ message: "Constant is already being utilized" });
+        return res
+          .status(400)
+          .json({ message: "Constant is already being utilized" });
       }
     } else if (targetSystem?.name === "providers") {
-      const relatedPlans = await Service.find({ purchedFrom: targetSystem?.value });
+      const relatedPlans = await Service.find({
+        purchedFrom: targetSystem?.value,
+      });
       if (relatedPlans?.length > 0) {
-        return res.status(400).json({ message: "Constant is already being utilized" });
+        return res
+          .status(400)
+          .json({ message: "Constant is already being utilized" });
       }
-
     }
     const deletedSystem = await System.findByIdAndDelete(id);
     if (!deletedSystem) {
@@ -742,7 +762,7 @@ router.post("/update_service", async (req, res) => {
       expiryDate,
       productId,
       purchedFrom,
-      relatedUser
+      relatedUser,
     } = req.body;
     if (!serviceId) {
       return res.status(400).json({ message: "Service ID is required" });
@@ -783,14 +803,15 @@ router.post("/update_service", async (req, res) => {
       }
     }
     if (relatedUser) {
-      const userExists = await User.findById(relatedUser)
+      const userExists = await User.findById(relatedUser);
       if (userExists) {
-        updateFields.relatedUser = userExists._id
+        updateFields.relatedUser = userExists._id;
         updateFields.status = "active";
         if (!expiryDate) {
-          updateFields.expiryDate = new Date(new Date().setDate(new Date().getDate() + 30));
+          updateFields.expiryDate = new Date(
+            new Date().setDate(new Date().getDate() + 30)
+          );
         }
-
       }
     }
     if (productId) {
@@ -814,7 +835,7 @@ router.post("/update_service", async (req, res) => {
         ...updatedService.toObject(),
         vmStatus:
           terminate === false ||
-            (expiryDate && new Date(expiryDate) > new Date())
+          (expiryDate && new Date(expiryDate) > new Date())
             ? "running"
             : updatedService.status,
       },
@@ -894,8 +915,8 @@ router.post("/process_request", async (req, res) => {
         !approve && request?.requestType === "Renew"
           ? "Warning"
           : approve
-            ? "success"
-            : "error",
+          ? "success"
+          : "error",
       ...value,
     });
     await newNotification.save();
@@ -939,12 +960,22 @@ router.post("/create_invoice", async (req, res) => {
       createdAt: -1,
     });
     let generatedInvoiceId;
+    const now = new Date();
+    const year = now.getFullYear().toString();
+    const month = (now.getMonth() + 1).toString().padStart(2, "0");
+    const day = now.getDate().toString().padStart(2, "0");
+
     if (getLastPhonepeTransaction && getLastPhonepeTransaction.invoiceId) {
-      const lastInvoiceId = getLastPhonepeTransaction.invoiceId.split("-")[1];
-      const newInvoiceId = parseInt(lastInvoiceId) + 1;
-      generatedInvoiceId = `INV-${String(newInvoiceId).padStart(8, "0")}`;
+      const parts = getLastPhonepeTransaction.invoiceId.split("-");
+      let lastSerial = 1;
+      if (parts.length === 5 && !isNaN(parseInt(parts[4]))) {
+        lastSerial = parseInt(parts[4]) + 1;
+      }
+      generatedInvoiceId = `INV-${year}-${month}-${day}-${String(
+        lastSerial
+      ).padStart(8, "0")}`;
     } else {
-      generatedInvoiceId = `INV-00000001`;
+      generatedInvoiceId = `INV-${year}-${month}-${day}-00000001`;
     }
     if (isPaid) {
       // const payment = new Payment({
@@ -992,22 +1023,27 @@ router.post("/create_invoice", async (req, res) => {
       const uploadToExcel = async () => {
         try {
           await axios.post(
-            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${payment?.invoiceId
-            }&entry.897584116=${user?.address?.state
+            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${
+              payment?.invoiceId
+            }&entry.897584116=${
+              user?.address?.state
             }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
               2
-            )}&entry.978406635=${user?.address?.state === "UP"
-              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-              : ""
-            }&entry.555025617=${user?.address?.state === "UP"
-              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-              : ""
-            }&entry.1209097425=${user?.address?.state !== "UP"
-              ? (subTotalInNumber - actualPrice).toFixed(2)
-              : ""
+            )}&entry.978406635=${
+              user?.address?.state === "UP"
+                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                : ""
+            }&entry.555025617=${
+              user?.address?.state === "UP"
+                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+                : ""
+            }&entry.1209097425=${
+              user?.address?.state !== "UP"
+                ? (subTotalInNumber - actualPrice).toFixed(2)
+                : ""
             }&entry.723332171=${subTotalInNumber.toFixed(2)}`
           );
-        } catch (error) { }
+        } catch (error) {}
       };
       uploadToExcel();
       await transaction.save();
@@ -1053,7 +1089,6 @@ router.post("/create_invoice", async (req, res) => {
   }
 });
 
-
 router.get("/search_user_by_email", async (req, res) => {
   try {
     const { email } = req.query;
@@ -1063,9 +1098,9 @@ router.get("/search_user_by_email", async (req, res) => {
     }
 
     const users = await User.find({
-      email: { $regex: email, $options: 'i' },
-      role: { $ne: 'admin' } // Exclude admin roles
-    }).select('email firstName lastName _id');
+      email: { $regex: email, $options: "i" },
+      role: { $ne: "admin" }, // Exclude admin roles
+    }).select("email firstName lastName _id");
     // console.log(users)
     return res.status(200).json(users);
   } catch (error) {
@@ -1073,7 +1108,6 @@ router.get("/search_user_by_email", async (req, res) => {
     return res.status(500).json({ message: "Failed to search users" });
   }
 });
-
 
 router.get("/search_productid", async (req, res) => {
   try {
@@ -1083,8 +1117,8 @@ router.get("/search_productid", async (req, res) => {
       return res.status(400).json({ message: "Email parameter is required" });
     }
     const product = await Plan.find({
-      productId: { $regex: id, $options: 'i' }
-    })
+      productId: { $regex: id, $options: "i" },
+    });
     return res.status(200).json(product);
   } catch (error) {
     console.error("Error searching users by email:", error);

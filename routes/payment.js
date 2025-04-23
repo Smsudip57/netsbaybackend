@@ -294,14 +294,24 @@ router.post("/phonepay_webhook", async (req, res) => {
         }).sort({
           createdAt: -1,
         });
+
         let generatedInvoiceId;
+        const now = new Date();
+        const year = now.getFullYear().toString();
+        const month = (now.getMonth() + 1).toString().padStart(2, "0");
+        const day = now.getDate().toString().padStart(2, "0");
+
         if (getLastPhonepeTransaction && getLastPhonepeTransaction.invoiceId) {
-          const lastInvoiceId =
-            getLastPhonepeTransaction.invoiceId.split("-")[1];
-          const newInvoiceId = parseInt(lastInvoiceId) + 1;
-          generatedInvoiceId = `INV-${String(newInvoiceId).padStart(8, "0")}`;
+          const parts = getLastPhonepeTransaction.invoiceId.split("-");
+          let lastSerial = 1;
+          if (parts.length === 5 && !isNaN(parseInt(parts[4]))) {
+            lastSerial = parseInt(parts[4]) + 1;
+          }
+          generatedInvoiceId = `INV-${year}-${month}-${day}-${String(
+            lastSerial
+          ).padStart(8, "0")}`;
         } else {
-          generatedInvoiceId = `INV-00000001`;
+          generatedInvoiceId = `INV-${year}-${month}-${day}-00000001`;
         }
 
         const subTotalInNumber = parseFloat(jsonResponse.data.amount) / 100;

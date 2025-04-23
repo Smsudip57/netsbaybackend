@@ -5,7 +5,10 @@ const paymentSchema = new mongoose.Schema({
     type: String,
     validate: {
       validator: function (value) {
-        if (this.paymentType === "Phonepe" || this.paymentType === "Bank_Transfer") {
+        if (
+          this.paymentType === "Phonepe" ||
+          this.paymentType === "Bank_Transfer"
+        ) {
           return value && value.length > 0;
         }
         return true;
@@ -13,10 +16,10 @@ const paymentSchema = new mongoose.Schema({
       message: "Invoice ID is required for PhonePe payments",
     },
   },
-  invoicetype:{
+  invoicetype: {
     type: String,
-    enum:["Inclusive","Exclusive","Getway"],
-    default:"Getway"
+    enum: ["Inclusive", "Exclusive", "Getway"],
+    default: "Getway",
   },
   transactionID: {
     type: String, // TRN3481423985
@@ -56,8 +59,8 @@ const paymentSchema = new mongoose.Schema({
   },
 });
 
-paymentSchema.pre('save', function(next) {
-  if (this.status === 'Pending') {
+paymentSchema.pre("save", function (next) {
+  if (this.status === "Pending") {
     const oneHourFromNow = new Date();
     oneHourFromNow.setHours(oneHourFromNow.getHours() + 1);
     this.expiresAt = oneHourFromNow;
@@ -67,17 +70,16 @@ paymentSchema.pre('save', function(next) {
   next();
 });
 
-paymentSchema.pre('findOneAndUpdate', function(next) {
+paymentSchema.pre("findOneAndUpdate", function (next) {
   const update = this.getUpdate();
-  if (update && update.status === 'Success') {
+  if (update && update.status === "Success") {
     this.update({}, { $set: { expiresAt: null } });
-  } 
-  else if (update && update.status === 'Pending') {
+  } else if (update && update.status === "Pending") {
     const oneHourFromNow = new Date();
     oneHourFromNow.setHours(oneHourFromNow.getHours() + 1);
     this.update({}, { $set: { expiresAt: oneHourFromNow } });
   }
-  
+
   next();
 });
 
