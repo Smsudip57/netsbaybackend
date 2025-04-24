@@ -9,10 +9,10 @@ const Transaction = require("../models/transaction");
 const Payment = require("../models/payment");
 const crypto = require("crypto");
 const router = express.Router();
-const bcrypt = require('bcrypt');
-const multer = require('multer');
-const fs = require('fs');
-const path = require('path');
+const bcrypt = require("bcrypt");
+const multer = require("multer");
+const fs = require("fs");
+const path = require("path");
 const {
   getVMStatus,
   executeVMAction,
@@ -34,7 +34,7 @@ const notify = (data) => {
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../public');
+    const uploadDir = path.join(__dirname, "../public");
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
     }
@@ -42,25 +42,25 @@ const storage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     if (!req.user || !req.user._id) {
-      return cb(new Error('User not authenticated'));
+      return cb(new Error("User not authenticated"));
     }
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     const ext = path.extname(file.originalname);
     cb(null, `profile-${req.user._id}-${uniqueSuffix}${ext}`);
-  }
+  },
 });
 
 const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+      cb(new Error("Invalid file type. Only JPEG, PNG, and WebP are allowed."));
     }
-  }
+  },
 });
 
 // Profile edit route
@@ -73,8 +73,8 @@ router.post("/profileedit", async (req, res) => {
     }
 
     // Handle profile image upload with multer
-    if (req.headers['content-type']?.includes('multipart/form-data')) {
-      upload.single('profileImage')(req, res, async (err) => {
+    if (req.headers["content-type"]?.includes("multipart/form-data")) {
+      upload.single("profileImage")(req, res, async (err) => {
         if (err) {
           return res.status(400).json({ message: err.message });
         }
@@ -86,9 +86,16 @@ router.post("/profileedit", async (req, res) => {
 
           const imageUrl = `${process.env.Current_Url}/${req.file.filename}`;
 
-          if (user.profile?.avatarUrl && user.profile.avatarUrl !== 'https://default-avatar-url.com') {
+          if (
+            user.profile?.avatarUrl &&
+            user.profile.avatarUrl !== "https://default-avatar-url.com"
+          ) {
             try {
-              const oldImagePath = path.join(__dirname, '../public', new URL(user.profile.avatarUrl).pathname);
+              const oldImagePath = path.join(
+                __dirname,
+                "../public",
+                new URL(user.profile.avatarUrl).pathname
+              );
               if (fs.existsSync(oldImagePath)) {
                 fs.unlinkSync(oldImagePath);
               }
@@ -98,32 +105,41 @@ router.post("/profileedit", async (req, res) => {
           }
 
           await User.findByIdAndUpdate(user._id, {
-            'profile.avatarUrl': imageUrl,
-            'profile.name': req.file.originalname
+            "profile.avatarUrl": imageUrl,
+            "profile.name": req.file.originalname,
           });
-          
+
           // Fetch updated user
           const updatedUser = await User.findById(user._id);
 
-          return res.status(200).json({ 
+          return res.status(200).json({
             message: "Profile image updated successfully",
-            user: updatedUser 
+            user: updatedUser,
           });
         } catch (error) {
           console.error("Error updating profile image:", error);
-          return res.status(500).json({ message: "Server error while updating profile image" });
+          return res
+            .status(500)
+            .json({ message: "Server error while updating profile image" });
         }
       });
       return;
     }
 
     if (req.body.deleteProfileImage) {
-      if (user.profile?.avatarUrl && user.profile.avatarUrl !== 'https://default-avatar-url.com') {
+      if (
+        user.profile?.avatarUrl &&
+        user.profile.avatarUrl !== "https://default-avatar-url.com"
+      ) {
         try {
           // Delete the image file
           const imageUrl = user.profile.avatarUrl;
           try {
-            const imagePath = path.join(__dirname, '../public', new URL(imageUrl).pathname);
+            const imagePath = path.join(
+              __dirname,
+              "../public",
+              new URL(imageUrl).pathname
+            );
             if (fs.existsSync(imagePath)) {
               fs.unlinkSync(imagePath);
             }
@@ -133,20 +149,22 @@ router.post("/profileedit", async (req, res) => {
 
           // Reset profile image to default
           await User.findByIdAndUpdate(user._id, {
-            'profile.avatarUrl': 'https://default-avatar-url.com',
-            'profile.name': null
+            "profile.avatarUrl": "https://default-avatar-url.com",
+            "profile.name": null,
           });
-          
+
           // Fetch updated user
           const updatedUser = await User.findById(user._id);
 
-          return res.status(200).json({ 
+          return res.status(200).json({
             message: "Profile image removed successfully",
-            user: updatedUser
+            user: updatedUser,
           });
         } catch (error) {
           console.error("Error deleting profile image:", error);
-          return res.status(500).json({ message: "Server error while deleting profile image" });
+          return res
+            .status(500)
+            .json({ message: "Server error while deleting profile image" });
         }
       } else {
         return res.status(400).json({ message: "No profile image to delete" });
@@ -154,9 +172,12 @@ router.post("/profileedit", async (req, res) => {
     }
 
     switch (req.body.type) {
-      case 'profileUpdate':
+      case "profileUpdate":
         // Verify password for sensitive update
-        const isPasswordValid = await bcrypt.compare(req.body.password, user.password);
+        const isPasswordValid = await bcrypt.compare(
+          req.body.password,
+          user.password
+        );
         if (!isPasswordValid) {
           return res.status(401).json({ message: "Incorrect password" });
         }
@@ -167,20 +188,23 @@ router.post("/profileedit", async (req, res) => {
           lastName: req.body.lastName,
           whatsapp: req.body.whatsapp,
           organizationName: req.body.organizationName,
-          gstNumber: req.body.gstNumber
+          gstNumber: req.body.gstNumber,
         });
-        
+
         // Fetch updated user
         const updatedUserProfile = await User.findById(user._id);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: "Profile updated successfully",
-          user: updatedUserProfile
+          user: updatedUserProfile,
         });
 
-      case 'addressUpdate':
+      case "addressUpdate":
         // Verify password for sensitive update
-        const isPwdValid = await bcrypt.compare(req.body.password, user.password);
+        const isPwdValid = await bcrypt.compare(
+          req.body.password,
+          user.password
+        );
         if (!isPwdValid) {
           return res.status(401).json({ message: "Incorrect password" });
         }
@@ -192,43 +216,44 @@ router.post("/profileedit", async (req, res) => {
             city: req.body.address.city,
             state: req.body.address.state,
             country: req.body.address.country,
-            pincode: req.body.address.pincode
-          }
+            pincode: req.body.address.pincode,
+          },
         });
-        
+
         // Fetch updated user
         const updatedUserAddress = await User.findById(user._id);
 
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: "Address updated successfully",
-          user: updatedUserAddress
+          user: updatedUserAddress,
         });
 
-      case 'passwordChange':
+      case "passwordChange":
         if (req?.user?.password && req?.body?.password?.length > 0) {
-          const isCurrentPwdValid = await bcrypt.compare(req.body.currentPassword, user.password);
+          const isCurrentPwdValid = await bcrypt.compare(
+            req.body.currentPassword,
+            user.password
+          );
           if (!isCurrentPwdValid) {
-            return res.status(401).json({ message: "Current password is incorrect" });
+            return res
+              .status(401)
+              .json({ message: "Current password is incorrect" });
           }
-        } 
-
-    
-
-  
+        }
 
         const hashedPassword = await bcrypt.hash(req.body.newPassword, 10);
 
         // Update password
         await User.findByIdAndUpdate(user._id, {
-          password: hashedPassword
+          password: hashedPassword,
         });
-        
+
         // Fetch updated user
         const updatedUserPassword = await User.findById(user._id).select();
 
-        return res.status(200).json({ 
+        return res.status(200).json({
           message: "Password updated successfully",
-          user: updatedUserPassword
+          user: updatedUserPassword,
         });
 
       default:
@@ -239,7 +264,6 @@ router.post("/profileedit", async (req, res) => {
     return res.status(500).json({ message: "Server error" });
   }
 });
-
 
 router.get("/all_plans", async (req, res) => {
   try {
@@ -424,7 +448,7 @@ router.get("/service", async (req, res) => {
           const vmStatus = await getVMStatus(service?.vmID);
           console.log("VM Status:", vmStatus?.status);
           service.vmStatus = vmStatus?.status;
-        } catch (error) { }
+        } catch (error) {}
       } else if (service.expiryDate) {
         service.vmStatus = "expired";
         if (service.status !== "expired") {
@@ -528,10 +552,10 @@ router.post("/action", async (req, res) => {
             targetService?.relatedProduct?.serviceType?.includes("Linux")
               ? await changeCloudInitPassword(targetService?.vmID, password)
               : await changeWindowsVMPassword(
-                targetService?.vmID,
-                targetService?.username,
-                password
-              );
+                  targetService?.vmID,
+                  targetService?.username,
+                  password
+                );
 
           if (ChangePassRequest) {
             targetService.password = password;
@@ -561,12 +585,12 @@ router.post("/action", async (req, res) => {
           action === "start"
             ? "started"
             : action === "stop"
-              ? "stopped"
-              : action === "reboot"
-                ? "rebooted"
-                : action === "changepass"
-                  ? "changed password"
-                  : "";
+            ? "stopped"
+            : action === "reboot"
+            ? "rebooted"
+            : action === "changepass"
+            ? "changed password"
+            : "";
 
         return res.status(200).json({
           success: true,
@@ -593,15 +617,15 @@ router.post("/action", async (req, res) => {
           const Response =
             action === "reboot"
               ? await rebootServer(
-                targetService?.ipAddress,
-                targetService?.EXTRLhash
-              )
+                  targetService?.ipAddress,
+                  targetService?.EXTRLhash
+                )
               : await changePassword(
-                targetService?.ipAddress,
-                targetService?.EXTRLhash,
-                targetService?.username,
-                password
-              );
+                  targetService?.ipAddress,
+                  targetService?.EXTRLhash,
+                  targetService?.username,
+                  password
+                );
           if (Response && action === "changepass") {
             targetService.password = password;
             targetService.save();
@@ -749,6 +773,7 @@ router.get("/purchase_service", async (req, res) => {
     const transaction = new Transaction({
       transactionId: newTransactionId,
       user: user._id,
+      planId: plan._id,
       amount: -price.toFixed(2),
       type: "Service-Purchase",
       description: `Purchased service: ${plan.productName} for ${quantity} time(s)`,
@@ -840,10 +865,11 @@ router.post("/renew_service", async (req, res) => {
       success: true,
       user: user,
       service: targetService,
-      message: `Service ${targetService?.relatedProduct?.serviceType?.includes("External")
-        ? "renew request sent"
-        : "renewed"
-        } successfully`,
+      message: `Service ${
+        targetService?.relatedProduct?.serviceType?.includes("External")
+          ? "renew request sent"
+          : "renewed"
+      } successfully`,
     });
   } catch (error) {
     console.error("Error renewing service:", error);
@@ -870,8 +896,8 @@ router.get("/paymentHistory", async (req, res) => {
       user?.role === "admin"
         ? await Payment.find().populate("user").sort({ createdAt: -1 })
         : await Payment.find({ user: user._id }).sort({
-          createdAt: -1,
-        });
+            createdAt: -1,
+          });
     return res.status(200).json(history);
   } catch (error) {
     console.error("Error fetching transactions:", error);

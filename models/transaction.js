@@ -12,7 +12,7 @@ const transactionSchema = new mongoose.Schema({
     ref: "User",
     required: true,
   },
-  serviceMongoID: {
+  planId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Service",
   },

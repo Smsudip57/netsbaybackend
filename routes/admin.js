@@ -1126,4 +1126,28 @@ router.get("/search_productid", async (req, res) => {
   }
 });
 
+router.get("/get_user_transation", async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ message: "User ID is required" });
+    }
+    const transactions = await Transaction.find({ user: userId });
+    return res.status(200).json(transactions);
+  } catch (error) {
+    console.error("Error searching users by email:", error);
+    return res.status(500).json({ message: "Failed to search users" });
+  }
+});
+
+router.get("/transactions", async (req, res) => {
+  try {
+    const transactions = await Transaction.find().populate("planId").populate("user");
+    return res.status(200).json(transactions);
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    return res.status(500).json({ message: "Failed to fetch transactions" });
+  }
+});
+
 module.exports = router;
