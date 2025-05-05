@@ -281,7 +281,7 @@ router.get("/get_product", async (req, res) => {
     if (!productId) {
       return res.status(400).json({ message: "Product ID is required" });
     }
-    const plan = await Plan.findOne({ productId: productId });
+    const plan = await Plan.findOne({ productId: productId }).populate("dataCenterLocation");
     if (!plan) {
       return res.status(404).json({ message: "Plan not found" });
     }
@@ -436,7 +436,14 @@ router.get("/service", async (req, res) => {
     }
     const initialService = await Service.findOne({
       serviceId: serviceId,
-    }).populate("relatedProduct");
+    }).populate({
+      path: "relatedProduct",
+      populate: {
+        path: "dataCenterLocation",
+        model: "System"
+      }
+    });
+    // console.log(initialService);
     if (!initialService) {
       return res.status(404).json({ message: "Service not found" });
     }

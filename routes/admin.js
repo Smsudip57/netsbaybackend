@@ -81,11 +81,10 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${
-          updateFields.balance < existinguser.balance
-            ? "has been debited from your account"
-            : "has been credited from your account"
-        }.`,
+        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
+          ? "has been debited from your account"
+          : "has been credited from your account"
+          }.`,
       });
       await newNotification.save();
       notify({
@@ -93,11 +92,10 @@ router.put("/update_user", async (req, res) => {
         status:
           updateFields.balance < existinguser.balance ? "error" : "success",
         title: "Account Status Changed",
-        message: `${updateFields.balance - existinguser.balance} ${
-          updateFields.balance < existinguser.balance
-            ? "has been debited from your account"
-            : "has been credited from your account"
-        }.`,
+        message: `${updateFields.balance - existinguser.balance} ${updateFields.balance < existinguser.balance
+          ? "has been debited from your account"
+          : "has been credited from your account"
+          }.`,
       });
     }
     if (typeof isBanned === "boolean") {
@@ -122,18 +120,16 @@ router.put("/update_user", async (req, res) => {
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${
-          revokedService ? "revoked" : "unrevoked"
-        }.`,
+        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
+          }.`,
       });
       await newNotification.save();
       notify({
         userId: userId,
         status: revokedService ? "error" : "success",
         title: "Account Status Changed",
-        message: `Your account has been ${
-          revokedService ? "revoked" : "unrevoked"
-        }.`,
+        message: `Your account has been ${revokedService ? "revoked" : "unrevoked"
+          }.`,
       });
     }
 
@@ -203,6 +199,7 @@ router.post("/add_product", async (req, res) => {
       price,
       inStock,
       maxPendingService,
+      dataCenterLocation
     } = req.body;
 
     const plan = new Plan({
@@ -217,6 +214,7 @@ router.post("/add_product", async (req, res) => {
       price: Number(price),
       stock: Boolean(inStock),
       maxPendingService: Number(maxPendingService),
+      dataCenterLocation
     });
     await plan.save();
 
@@ -295,12 +293,14 @@ router.post("/update_product", async (req, res) => {
       price,
       Stock,
       maxPendingService,
+      dataCenterLocation
     } = req.body;
 
+    // console.log("req.body")
+    // console.log(dataCenterLocation)
     if (!productId) {
       return res.status(400).json({ message: "Product ID is required" });
     }
-
     if (
       !productName &&
       !Os &&
@@ -310,7 +310,8 @@ router.post("/update_product", async (req, res) => {
       !storage &&
       !ipSet &&
       !price &&
-      Stock === undefined
+      Stock === undefined &&
+      !dataCenterLocation
     ) {
       return res.status(400).json({ message: "No update data provided" });
     }
@@ -328,6 +329,15 @@ router.post("/update_product", async (req, res) => {
     if (maxPendingService)
       updateData.maxPendingService = Number(maxPendingService);
 
+    if (dataCenterLocation) {
+      const system = await System.findById(dataCenterLocation);
+      if (!system || system.name !== "datacenter") {
+        return res
+          .status(400)
+          .json({ message: "Invalid data center location" });
+      }
+      updateData.dataCenterLocation = dataCenterLocation;
+    }
     const updatedPlan = await Plan.findOneAndUpdate(
       { productId },
       { $set: updateData },
@@ -620,9 +630,8 @@ router.post("/coupon_status", async (req, res) => {
     await coupon.save();
     return res.status(200).json({
       success: true,
-      message: `Coupon ${
-        value ? "activated" : "deactivated"
-      } updated successfully`,
+      message: `Coupon ${value ? "activated" : "deactivated"
+        } updated successfully`,
     });
   } catch (error) {
     return res
@@ -656,16 +665,81 @@ router.post("/create_system", async (req, res) => {
     if (!name || !value) {
       return res.status(400).json({ message: "Name and value are required" });
     }
-    const system = new System({ name, value });
-    await system.save();
-    return res
-      .status(201)
-      .json({ message: "System created successfully", system });
+    if (name !== "datacenter") {
+
+      const system = new System({ name, value });
+      await system.save();
+      return res
+        .status(201)
+        .json({ message: "System created successfully", system });
+    } else if (name === "datacenter") {
+      const { location, datastore, status } = value;
+      if (!location || typeof location !== 'string') {
+        return res.status(400).json({ message: "Location is required and must be a string" });
+      }
+      if (!datastore || typeof datastore !== 'string') {
+        return res.status(400).json({ message: "Datastore is required and must be a string" });
+      }
+      if (typeof status !== 'boolean') {
+        return res.status(400).json({ message: "Status must be a boolean" });
+      }
+      const system = new System({
+        name,
+        value: {
+          location,
+          datastore,
+          status
+        }
+      });
+
+      await system.save();
+
+
+      return res
+        .status(201)
+        .json({ message: "System created successfully", system });
+    } else {
+      res.status(400).json({ message: "Invalid system name" });
+    }
   } catch (error) {
     console.error("Error creating system:", error);
     return res.status(500).json({ message: "Failed to create system" });
   }
 });
+
+
+router.post("/update_system", async (req, res) => {
+  try {
+    const { id, value } = req.body;
+    if (!id) {
+      return res.status(400).json({ message: "ID is required" });
+    }
+    if (!value) {
+      return res.status(400).json({ message: "Name and value are required" });
+    }
+    const system = await System.findById(id);
+    if (!system) {
+      return res.status(404).json({ message: "System not found" });
+    }
+    if (system.name !== "datacenter") {
+      return res.status(400).json({ message: "Only DataCenter constants are editable" });
+    }
+    system.value = {
+      location: system.value.location,
+      datastore: system.value.datastore,
+      status: value.status
+    };
+    await system.save();
+    return res.status(200).json({
+      message: "System updated successfully",
+      system,
+    });
+  } catch (error) {
+    console.error("Error updating system:", error);
+    return res.status(500).json({ message: "Failed to update system" });
+  }
+})
+
 
 router.delete("/delete_system", async (req, res) => {
   try {
@@ -835,7 +909,7 @@ router.post("/update_service", async (req, res) => {
         ...updatedService.toObject(),
         vmStatus:
           terminate === false ||
-          (expiryDate && new Date(expiryDate) > new Date())
+            (expiryDate && new Date(expiryDate) > new Date())
             ? "running"
             : updatedService.status,
       },
@@ -915,8 +989,8 @@ router.post("/process_request", async (req, res) => {
         !approve && request?.requestType === "Renew"
           ? "Warning"
           : approve
-          ? "success"
-          : "error",
+            ? "success"
+            : "error",
       ...value,
     });
     await newNotification.save();
@@ -1023,27 +1097,22 @@ router.post("/create_invoice", async (req, res) => {
       const uploadToExcel = async () => {
         try {
           await axios.post(
-            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${
-              payment?.invoiceId
-            }&entry.897584116=${
-              user?.address?.state
+            `https://docs.google.com/forms/d/e/1FAIpQLSfzP9YAoLH08MLZUO-LtlCpR2lTCOIF9Bfn-lgv-YPxDrm48A/formResponse?&submit=Submit?usp=pp_url&entry.1888128289=${Formatedtoday()}&entry.824453820=${payment?.invoiceId
+            }&entry.897584116=${user?.address?.state
             }&entry.1231415132=18%25&entry.1207835655=${actualPrice.toFixed(
               2
-            )}&entry.978406635=${
-              user?.address?.state === "UP"
-                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-                : ""
-            }&entry.555025617=${
-              user?.address?.state === "UP"
-                ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
-                : ""
-            }&entry.1209097425=${
-              user?.address?.state !== "UP"
-                ? (subTotalInNumber - actualPrice).toFixed(2)
-                : ""
+            )}&entry.978406635=${user?.address?.state === "UP"
+              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+              : ""
+            }&entry.555025617=${user?.address?.state === "UP"
+              ? ((subTotalInNumber - actualPrice) / 2).toFixed(2)
+              : ""
+            }&entry.1209097425=${user?.address?.state !== "UP"
+              ? (subTotalInNumber - actualPrice).toFixed(2)
+              : ""
             }&entry.723332171=${subTotalInNumber.toFixed(2)}`
           );
-        } catch (error) {}
+        } catch (error) { }
       };
       uploadToExcel();
       await transaction.save();

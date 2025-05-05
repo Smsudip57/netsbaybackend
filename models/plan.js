@@ -18,6 +18,20 @@ const planSchema = new mongoose.Schema({
     required: true,
     enum:["Internal RDP","External RDP","Internal Linux","External Linux"]
   },
+  dataCenterLocation: {
+    type: mongoose.Schema.Types.ObjectId,
+    required: true,
+    ref: "System",
+    validate: {
+      validator: async function(value) {
+        if (!value) return true;
+        const System = mongoose.model('System');
+        const system = await System.findById(value);
+        return system && system.name === "datacenter";
+      },
+      message: "dataCenterLocation must reference a valid datacenter System document"
+    }
+  },
   cpu:{
     type:Number,
     required:true
